@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package pb;
+
+option go_package = "github.com/koliader/tellmi-users";
+
+message User {
+  int64 id = 1;
+  string username = 2;
+}
