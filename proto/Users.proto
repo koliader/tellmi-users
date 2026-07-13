@@ -4,10 +4,13 @@ package pb;
 
 option go_package = "github.com/koliader/tellmi-users";
 
+import "Entity.proto";
+
 service Users {
   rpc Register(RegisterReq) returns (AuthRes) {}
   rpc Login(LoginReq) returns (AuthRes) {}
   rpc GetUserById(IdReq) returns (UserRes) {}
+  rpc ListUsers(Empty) returns (ListUserRes) {}
 }
 
 message RegisterReq {
@@ -31,4 +34,8 @@ message IdReq {
 
 message UserRes {
   User user = 1;
+}
+
+message ListUserRes {
+  repeated User users = 1;
 }

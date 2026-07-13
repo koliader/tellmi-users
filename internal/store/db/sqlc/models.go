@@ -16,8 +16,9 @@ type Feedback struct {
 }
 
 type User struct {
-	ID        int32  `json:"id"`
+	ID        int64  `json:"id"`
+	Role      string `json:"role"`
 	Password  string `json:"password"`
 	Username  string `json:"username"`
-	IsBlocked *bool  `json:"is_blocked"`
+	IsBlocked bool   `json:"is_blocked"`
 }

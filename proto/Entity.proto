@@ -7,4 +7,8 @@ option go_package = "github.com/koliader/tellmi-users";
 message User {
   int64 id = 1;
   string username = 2;
+  string role = 3;
+  bool isBlocked = 4;
 }
+
+message Empty {}

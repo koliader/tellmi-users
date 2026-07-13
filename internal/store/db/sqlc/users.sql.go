@@ -12,22 +12,61 @@ import (
 const createUser = `-- name: CreateUser :one
 INSERT INTO "Users" (
   password,
-  username
+  username,
+  role
 ) VALUES (
-  $1, $2
-) RETURNING id, password, username, is_blocked
+  $1, $2, $3
+) RETURNING id, role, password, username, is_blocked
 `
 
 type CreateUserParams struct {
 	Password string `json:"password"`
 	Username string `json:"username"`
+	Role     string `json:"role"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRow(ctx, createUser, arg.Password, arg.Username)
+	row := q.db.QueryRow(ctx, createUser, arg.Password, arg.Username, arg.Role)
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.Role,
+		&i.Password,
+		&i.Username,
+		&i.IsBlocked,
+	)
+	return i, err
+}
+
+const getUserById = `-- name: GetUserById :one
+SELECT id, role, password, username, is_blocked FROM "Users" 
+WHERE ID = $1
+`
+
+func (q *Queries) GetUserById(ctx context.Context, id int64) (User, error) {
+	row := q.db.QueryRow(ctx, getUserById, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Role,
+		&i.Password,
+		&i.Username,
+		&i.IsBlocked,
+	)
+	return i, err
+}
+
+const getUserByUsername = `-- name: GetUserByUsername :one
+SELECT id, role, password, username, is_blocked FROM "Users" 
+WHERE Username = $1
+`
+
+func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByUsername, username)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Role,
 		&i.Password,
 		&i.Username,
 		&i.IsBlocked,
@@ -36,7 +75,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, password, username, is_blocked FROM "Users"
+SELECT id, role, password, username, is_blocked FROM "Users"
 `
 
 func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
@@ -50,6 +89,7 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 		var i User
 		if err := rows.Scan(
 			&i.ID,
+			&i.Role,
 			&i.Password,
 			&i.Username,
 			&i.IsBlocked,
