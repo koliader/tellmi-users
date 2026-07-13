@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/koliader/tellmi-users/internal/lib/config"
+	"github.com/koliader/tellmi-users/internal/lib/middleware"
 	"github.com/koliader/tellmi-users/internal/lib/token"
 	pb "github.com/koliader/tellmi-users/internal/pb"
 	users_service "github.com/koliader/tellmi-users/internal/services/users"
@@ -13,6 +14,7 @@ import (
 type Server struct {
 	pb.UnimplementedUsersServer
 	users_service users_service.Service
+	middleware    middleware.Middleware
 }
 
 func NewServer(config config.Config, store db.Store) (*Server, error) {
@@ -22,6 +24,9 @@ func NewServer(config config.Config, store db.Store) (*Server, error) {
 	}
 
 	usersService := users_service.NewService(tokenMaker, config, store)
-	server := Server{users_service: *usersService}
+	middleware := middleware.NewMiddleware(tokenMaker)
+
+	server := Server{users_service: *usersService, middleware: *middleware}
+
 	return &server, nil
 }

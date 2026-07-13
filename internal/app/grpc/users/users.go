@@ -4,7 +4,9 @@ import (
 	"context"
 
 	"github.com/koliader/tellmi-users/internal/lib/converter"
+	grpc_err "github.com/koliader/tellmi-users/internal/lib/error/service"
 	pb "github.com/koliader/tellmi-users/internal/pb"
+	"google.golang.org/grpc/codes"
 )
 
 func (s *Server) Register(ctx context.Context, req *pb.RegisterReq) (*pb.AuthRes, error) {
@@ -35,6 +37,15 @@ func (s *Server) GetUserById(ctx context.Context, req *pb.IdReq) (*pb.UserRes, e
 }
 
 func (s *Server) ListUsers(ctx context.Context, req *pb.Empty) (*pb.ListUserRes, error) {
+	_, err := s.middleware.AuthorizeAdmin(ctx)
+	if err != nil {
+		return nil, grpc_err.ErrorResponse(
+			codes.Unauthenticated,
+			"error to authorize user: %v",
+			err,
+		)
+	}
+
 	users, err := s.users_service.ListUsers(ctx)
 	if err != nil {
 		return nil, err
