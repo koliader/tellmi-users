@@ -1,10 +1,9 @@
 -- name: CreateUser :one
 INSERT INTO "Users" (
   password,
-  username,
-  role
+  username
 ) VALUES (
-  $1, $2, $3
+  $1, $2
 ) RETURNING *;
 
 -- name: ListUsers :many

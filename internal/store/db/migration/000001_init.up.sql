@@ -6,6 +6,7 @@ CREATE TABLE "Users" (
   "is_blocked" bool NOT NULL DEFAULT false 
 );
 
+-- ????
 CREATE TABLE "Boards" (
   "id" integer PRIMARY KEY,
   "user_id" integer NOT NULL
