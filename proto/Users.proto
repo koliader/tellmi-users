@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package pb;
 
-option go_package = "github.com/koliader/tellmi-users";
+option go_package = "github.com/koliader/tellmi-users/internal/pb";
 
 import "Entity.proto";
 
@@ -11,6 +11,7 @@ service Users {
   rpc Login(LoginReq) returns (AuthRes) {}
   rpc GetUserById(IdReq) returns (UserRes) {}
   rpc ListUsers(Empty) returns (ListUserRes) {}
+  rpc UpdateUser(UpdateUserReq) returns (UserRes) {}
 }
 
 message RegisterReq {
@@ -37,4 +38,9 @@ message UserRes {
 
 message ListUserRes {
   repeated User users = 1;
+}
+
+message UpdateUserReq {
+  int64 id = 1;
+  string username = 2;
 }

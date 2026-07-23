@@ -2,13 +2,17 @@ syntax = "proto3";
 
 package pb;
 
-option go_package = "github.com/koliader/tellmi-users";
+option go_package = "github.com/koliader/tellmi-users/internal/pb";
 
 message User {
   int64 id = 1;
   string username = 2;
   string role = 3;
   bool isBlocked = 4;
+}
+
+message Success {
+  string message = 1;
 }
 
 message Empty {}

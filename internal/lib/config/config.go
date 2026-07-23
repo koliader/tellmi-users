@@ -14,6 +14,7 @@ type Config struct {
 	TokenKey            string        `mapstructure:"TOKEN_KEY"`
 	AccessTokenDuration time.Duration `mapstructure:"ACCESS_TOKEN_DURATION"`
 	Environment         string        `mapstructure:"ENVIRONMENT"`
+	RbmUrl              string        `mapstructure:"RBM_URL"`
 }
 
 func LoadConfig(path string) (config Config, err error) {
@@ -46,5 +47,6 @@ func LoadKuberConfig() (config Config, err error) {
 		TokenKey:            os.Getenv("TOKEN_KEY"),
 		AccessTokenDuration: duration,
 		Environment:         os.Getenv("ENVIRONMENT"),
+		RbmUrl:              os.Getenv("RBM_URL"),
 	}, nil
 }

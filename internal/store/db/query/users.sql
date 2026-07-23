@@ -16,3 +16,9 @@ WHERE Username = $1;
 -- name: GetUserById :one
 SELECT * FROM "Users" 
 WHERE ID = $1;
+
+-- name: UpdateUser :one
+UPDATE "Users"
+SET username = $2
+WHERE id = $1
+RETURNING *;

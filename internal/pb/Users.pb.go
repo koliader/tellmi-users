@@ -4,7 +4,7 @@
 // 	protoc        v7.35.1
 // source: Users.proto
 
-package tellmi_users
+package pb
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -301,6 +301,58 @@ func (x *ListUserRes) GetUsers() []*User {
 	return nil
 }
 
+type UpdateUserReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Username      string                 `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateUserReq) Reset() {
+	*x = UpdateUserReq{}
+	mi := &file_Users_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateUserReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateUserReq) ProtoMessage() {}
+
+func (x *UpdateUserReq) ProtoReflect() protoreflect.Message {
+	mi := &file_Users_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateUserReq.ProtoReflect.Descriptor instead.
+func (*UpdateUserReq) Descriptor() ([]byte, []int) {
+	return file_Users_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *UpdateUserReq) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *UpdateUserReq) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
 var File_Users_proto protoreflect.FileDescriptor
 
 const file_Users_proto_rawDesc = "" +
@@ -319,12 +371,17 @@ const file_Users_proto_rawDesc = "" +
 	"\aUserRes\x12\x1c\n" +
 	"\x04user\x18\x01 \x01(\v2\b.pb.UserR\x04user\"-\n" +
 	"\vListUserRes\x12\x1e\n" +
-	"\x05users\x18\x01 \x03(\v2\b.pb.UserR\x05users2\xad\x01\n" +
+	"\x05users\x18\x01 \x03(\v2\b.pb.UserR\x05users\";\n" +
+	"\rUpdateUserReq\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x1a\n" +
+	"\busername\x18\x02 \x01(\tR\busername2\xdd\x01\n" +
 	"\x05Users\x12*\n" +
 	"\bRegister\x12\x0f.pb.RegisterReq\x1a\v.pb.AuthRes\"\x00\x12$\n" +
 	"\x05Login\x12\f.pb.LoginReq\x1a\v.pb.AuthRes\"\x00\x12'\n" +
 	"\vGetUserById\x12\t.pb.IdReq\x1a\v.pb.UserRes\"\x00\x12)\n" +
-	"\tListUsers\x12\t.pb.Empty\x1a\x0f.pb.ListUserRes\"\x00B\"Z github.com/koliader/tellmi-usersb\x06proto3"
+	"\tListUsers\x12\t.pb.Empty\x1a\x0f.pb.ListUserRes\"\x00\x12.\n" +
+	"\n" +
+	"UpdateUser\x12\x11.pb.UpdateUserReq\x1a\v.pb.UserRes\"\x00B.Z,github.com/koliader/tellmi-users/internal/pbb\x06proto3"
 
 var (
 	file_Users_proto_rawDescOnce sync.Once
@@ -338,30 +395,33 @@ func file_Users_proto_rawDescGZIP() []byte {
 	return file_Users_proto_rawDescData
 }
 
-var file_Users_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_Users_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_Users_proto_goTypes = []any{
-	(*RegisterReq)(nil), // 0: pb.RegisterReq
-	(*LoginReq)(nil),    // 1: pb.LoginReq
-	(*AuthRes)(nil),     // 2: pb.AuthRes
-	(*IdReq)(nil),       // 3: pb.IdReq
-	(*UserRes)(nil),     // 4: pb.UserRes
-	(*ListUserRes)(nil), // 5: pb.ListUserRes
-	(*User)(nil),        // 6: pb.User
-	(*Empty)(nil),       // 7: pb.Empty
+	(*RegisterReq)(nil),   // 0: pb.RegisterReq
+	(*LoginReq)(nil),      // 1: pb.LoginReq
+	(*AuthRes)(nil),       // 2: pb.AuthRes
+	(*IdReq)(nil),         // 3: pb.IdReq
+	(*UserRes)(nil),       // 4: pb.UserRes
+	(*ListUserRes)(nil),   // 5: pb.ListUserRes
+	(*UpdateUserReq)(nil), // 6: pb.UpdateUserReq
+	(*User)(nil),          // 7: pb.User
+	(*Empty)(nil),         // 8: pb.Empty
 }
 var file_Users_proto_depIdxs = []int32{
-	6, // 0: pb.UserRes.user:type_name -> pb.User
-	6, // 1: pb.ListUserRes.users:type_name -> pb.User
+	7, // 0: pb.UserRes.user:type_name -> pb.User
+	7, // 1: pb.ListUserRes.users:type_name -> pb.User
 	0, // 2: pb.Users.Register:input_type -> pb.RegisterReq
 	1, // 3: pb.Users.Login:input_type -> pb.LoginReq
 	3, // 4: pb.Users.GetUserById:input_type -> pb.IdReq
-	7, // 5: pb.Users.ListUsers:input_type -> pb.Empty
-	2, // 6: pb.Users.Register:output_type -> pb.AuthRes
-	2, // 7: pb.Users.Login:output_type -> pb.AuthRes
-	4, // 8: pb.Users.GetUserById:output_type -> pb.UserRes
-	5, // 9: pb.Users.ListUsers:output_type -> pb.ListUserRes
-	6, // [6:10] is the sub-list for method output_type
-	2, // [2:6] is the sub-list for method input_type
+	8, // 5: pb.Users.ListUsers:input_type -> pb.Empty
+	6, // 6: pb.Users.UpdateUser:input_type -> pb.UpdateUserReq
+	2, // 7: pb.Users.Register:output_type -> pb.AuthRes
+	2, // 8: pb.Users.Login:output_type -> pb.AuthRes
+	4, // 9: pb.Users.GetUserById:output_type -> pb.UserRes
+	5, // 10: pb.Users.ListUsers:output_type -> pb.ListUserRes
+	4, // 11: pb.Users.UpdateUser:output_type -> pb.UserRes
+	7, // [7:12] is the sub-list for method output_type
+	2, // [2:7] is the sub-list for method input_type
 	2, // [2:2] is the sub-list for extension type_name
 	2, // [2:2] is the sub-list for extension extendee
 	0, // [0:2] is the sub-list for field type_name
@@ -379,7 +439,7 @@ func file_Users_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_Users_proto_rawDesc), len(file_Users_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

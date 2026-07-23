@@ -23,7 +23,10 @@ func NewServer(config config.Config, store db.Store) (*Server, error) {
 		return nil, fmt.Errorf("error to create token maker: %v", err)
 	}
 
-	usersService := users_service.NewService(tokenMaker, config, store)
+	usersService, err := users_service.NewService(tokenMaker, config, store)
+	if err != nil {
+		return nil, fmt.Errorf("error to create users service: %v", err)
+	}
 	middleware := middleware.NewMiddleware(tokenMaker)
 
 	server := Server{users_service: *usersService, middleware: *middleware}

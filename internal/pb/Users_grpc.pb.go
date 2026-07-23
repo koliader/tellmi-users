@@ -4,7 +4,7 @@
 // - protoc             v7.35.1
 // source: Users.proto
 
-package tellmi_users
+package pb
 
 import (
 	context "context"
@@ -23,6 +23,7 @@ const (
 	Users_Login_FullMethodName       = "/pb.Users/Login"
 	Users_GetUserById_FullMethodName = "/pb.Users/GetUserById"
 	Users_ListUsers_FullMethodName   = "/pb.Users/ListUsers"
+	Users_UpdateUser_FullMethodName  = "/pb.Users/UpdateUser"
 )
 
 // UsersClient is the client API for Users service.
@@ -33,6 +34,7 @@ type UsersClient interface {
 	Login(ctx context.Context, in *LoginReq, opts ...grpc.CallOption) (*AuthRes, error)
 	GetUserById(ctx context.Context, in *IdReq, opts ...grpc.CallOption) (*UserRes, error)
 	ListUsers(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*ListUserRes, error)
+	UpdateUser(ctx context.Context, in *UpdateUserReq, opts ...grpc.CallOption) (*UserRes, error)
 }
 
 type usersClient struct {
@@ -83,6 +85,16 @@ func (c *usersClient) ListUsers(ctx context.Context, in *Empty, opts ...grpc.Cal
 	return out, nil
 }
 
+func (c *usersClient) UpdateUser(ctx context.Context, in *UpdateUserReq, opts ...grpc.CallOption) (*UserRes, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UserRes)
+	err := c.cc.Invoke(ctx, Users_UpdateUser_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // UsersServer is the server API for Users service.
 // All implementations must embed UnimplementedUsersServer
 // for forward compatibility.
@@ -91,6 +103,7 @@ type UsersServer interface {
 	Login(context.Context, *LoginReq) (*AuthRes, error)
 	GetUserById(context.Context, *IdReq) (*UserRes, error)
 	ListUsers(context.Context, *Empty) (*ListUserRes, error)
+	UpdateUser(context.Context, *UpdateUserReq) (*UserRes, error)
 	mustEmbedUnimplementedUsersServer()
 }
 
@@ -112,6 +125,9 @@ func (UnimplementedUsersServer) GetUserById(context.Context, *IdReq) (*UserRes, 
 }
 func (UnimplementedUsersServer) ListUsers(context.Context, *Empty) (*ListUserRes, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListUsers not implemented")
+}
+func (UnimplementedUsersServer) UpdateUser(context.Context, *UpdateUserReq) (*UserRes, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateUser not implemented")
 }
 func (UnimplementedUsersServer) mustEmbedUnimplementedUsersServer() {}
 func (UnimplementedUsersServer) testEmbeddedByValue()               {}
@@ -206,6 +222,24 @@ func _Users_ListUsers_Handler(srv interface{}, ctx context.Context, dec func(int
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Users_UpdateUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateUserReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UsersServer).UpdateUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Users_UpdateUser_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UsersServer).UpdateUser(ctx, req.(*UpdateUserReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Users_ServiceDesc is the grpc.ServiceDesc for Users service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -228,6 +262,10 @@ var Users_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListUsers",
 			Handler:    _Users_ListUsers_Handler,
+		},
+		{
+			MethodName: "UpdateUser",
+			Handler:    _Users_UpdateUser_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
