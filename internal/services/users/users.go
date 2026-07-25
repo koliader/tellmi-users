@@ -44,7 +44,7 @@ func (s *Service) Register(ctx context.Context, req *pb.RegisterReq) (*string, e
 		return nil, grpc_err.ErrorResponse(codes.Internal, "error to create a user: %v", err)
 	}
 
-	token, err := s.tokenMaker.CreateToken(user.ID, user.Role, s.config.AccessTokenDuration)
+	token, err := s.tokenMaker.CreateToken(user.Username, user.Role, s.config.AccessTokenDuration)
 	if err != nil {
 		return nil, grpc_err.ErrorResponse(codes.Internal, "error to generate token: %v", err)
 	}
@@ -78,7 +78,7 @@ func (s *Service) Login(ctx context.Context, req *pb.LoginReq) (*string, error) 
 	if err != nil {
 		return nil, grpc_err.AuthError(fmt.Errorf("%v", authError))
 	}
-	token, err := s.tokenMaker.CreateToken(user.ID, user.Role, s.config.AccessTokenDuration)
+	token, err := s.tokenMaker.CreateToken(user.Username, user.Role, s.config.AccessTokenDuration)
 	if err != nil {
 		return nil, grpc_err.ErrorResponse(codes.Internal, "error to generate token: %v", err)
 	}
