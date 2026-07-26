@@ -20,10 +20,10 @@ func (m *Middleware) AuthorizeAdmin(ctx context.Context) (*token.Payload, error)
 	}
 	authHeader := values[0]
 	fields := strings.Fields(authHeader)
-	if len(fields) < 1 {
+	if len(fields) < 2 {
 		return nil, fmt.Errorf("invalid auth header format")
 	}
-	token := fields[0]
+	token := fields[1]
 	payload, err := m.tokenMaker.VerifyToken(token)
 	if err != nil {
 		return nil, err

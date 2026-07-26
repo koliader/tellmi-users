@@ -7,6 +7,7 @@ import (
 	pb "github.com/koliader/tellmi-users/internal/pb"
 )
 
+// TODO add middleware using
 func (s *Server) Register(ctx context.Context, req *pb.RegisterReq) (*pb.AuthRes, error) {
 	return s.users_service.Register(ctx, req)
 }
