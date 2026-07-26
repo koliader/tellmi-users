@@ -9,7 +9,7 @@ func ErrorResponse(code codes.Code, msg string, a ...any) error {
 	if len(a) > 0 {
 		return status.Errorf(code, "%s: %v", msg, a)
 	}
-	return status.Errorf(code, msg)
+	return status.Errorf(code, "%s", msg)
 }
 
 func AuthError(err error) error {
