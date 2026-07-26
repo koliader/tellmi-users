@@ -127,7 +127,8 @@ func (x *LoginReq) GetPassword() string {
 
 type AuthRes struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+	AccessToken   string                 `protobuf:"bytes,1,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
+	RefreshToken  string                 `protobuf:"bytes,2,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -162,9 +163,112 @@ func (*AuthRes) Descriptor() ([]byte, []int) {
 	return file_Users_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *AuthRes) GetToken() string {
+func (x *AuthRes) GetAccessToken() string {
 	if x != nil {
-		return x.Token
+		return x.AccessToken
+	}
+	return ""
+}
+
+func (x *AuthRes) GetRefreshToken() string {
+	if x != nil {
+		return x.RefreshToken
+	}
+	return ""
+}
+
+type RefreshReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RefreshToken  string                 `protobuf:"bytes,1,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RefreshReq) Reset() {
+	*x = RefreshReq{}
+	mi := &file_Users_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RefreshReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RefreshReq) ProtoMessage() {}
+
+func (x *RefreshReq) ProtoReflect() protoreflect.Message {
+	mi := &file_Users_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RefreshReq.ProtoReflect.Descriptor instead.
+func (*RefreshReq) Descriptor() ([]byte, []int) {
+	return file_Users_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *RefreshReq) GetRefreshToken() string {
+	if x != nil {
+		return x.RefreshToken
+	}
+	return ""
+}
+
+type RefreshRes struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccessToken   string                 `protobuf:"bytes,1,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
+	RefreshToken  string                 `protobuf:"bytes,2,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RefreshRes) Reset() {
+	*x = RefreshRes{}
+	mi := &file_Users_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RefreshRes) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RefreshRes) ProtoMessage() {}
+
+func (x *RefreshRes) ProtoReflect() protoreflect.Message {
+	mi := &file_Users_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RefreshRes.ProtoReflect.Descriptor instead.
+func (*RefreshRes) Descriptor() ([]byte, []int) {
+	return file_Users_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *RefreshRes) GetAccessToken() string {
+	if x != nil {
+		return x.AccessToken
+	}
+	return ""
+}
+
+func (x *RefreshRes) GetRefreshToken() string {
+	if x != nil {
+		return x.RefreshToken
 	}
 	return ""
 }
@@ -178,7 +282,7 @@ type IdReq struct {
 
 func (x *IdReq) Reset() {
 	*x = IdReq{}
-	mi := &file_Users_proto_msgTypes[3]
+	mi := &file_Users_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -190,7 +294,7 @@ func (x *IdReq) String() string {
 func (*IdReq) ProtoMessage() {}
 
 func (x *IdReq) ProtoReflect() protoreflect.Message {
-	mi := &file_Users_proto_msgTypes[3]
+	mi := &file_Users_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -203,7 +307,7 @@ func (x *IdReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IdReq.ProtoReflect.Descriptor instead.
 func (*IdReq) Descriptor() ([]byte, []int) {
-	return file_Users_proto_rawDescGZIP(), []int{3}
+	return file_Users_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *IdReq) GetId() int64 {
@@ -222,7 +326,7 @@ type UserRes struct {
 
 func (x *UserRes) Reset() {
 	*x = UserRes{}
-	mi := &file_Users_proto_msgTypes[4]
+	mi := &file_Users_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -234,7 +338,7 @@ func (x *UserRes) String() string {
 func (*UserRes) ProtoMessage() {}
 
 func (x *UserRes) ProtoReflect() protoreflect.Message {
-	mi := &file_Users_proto_msgTypes[4]
+	mi := &file_Users_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -247,7 +351,7 @@ func (x *UserRes) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserRes.ProtoReflect.Descriptor instead.
 func (*UserRes) Descriptor() ([]byte, []int) {
-	return file_Users_proto_rawDescGZIP(), []int{4}
+	return file_Users_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *UserRes) GetUser() *User {
@@ -266,7 +370,7 @@ type ListUserRes struct {
 
 func (x *ListUserRes) Reset() {
 	*x = ListUserRes{}
-	mi := &file_Users_proto_msgTypes[5]
+	mi := &file_Users_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -278,7 +382,7 @@ func (x *ListUserRes) String() string {
 func (*ListUserRes) ProtoMessage() {}
 
 func (x *ListUserRes) ProtoReflect() protoreflect.Message {
-	mi := &file_Users_proto_msgTypes[5]
+	mi := &file_Users_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -291,7 +395,7 @@ func (x *ListUserRes) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListUserRes.ProtoReflect.Descriptor instead.
 func (*ListUserRes) Descriptor() ([]byte, []int) {
-	return file_Users_proto_rawDescGZIP(), []int{5}
+	return file_Users_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ListUserRes) GetUsers() []*User {
@@ -311,7 +415,7 @@ type UpdateUserReq struct {
 
 func (x *UpdateUserReq) Reset() {
 	*x = UpdateUserReq{}
-	mi := &file_Users_proto_msgTypes[6]
+	mi := &file_Users_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -323,7 +427,7 @@ func (x *UpdateUserReq) String() string {
 func (*UpdateUserReq) ProtoMessage() {}
 
 func (x *UpdateUserReq) ProtoReflect() protoreflect.Message {
-	mi := &file_Users_proto_msgTypes[6]
+	mi := &file_Users_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -336,7 +440,7 @@ func (x *UpdateUserReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateUserReq.ProtoReflect.Descriptor instead.
 func (*UpdateUserReq) Descriptor() ([]byte, []int) {
-	return file_Users_proto_rawDescGZIP(), []int{6}
+	return file_Users_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *UpdateUserReq) GetId() int64 {
@@ -363,9 +467,17 @@ const file_Users_proto_rawDesc = "" +
 	"\bpassword\x18\x02 \x01(\tR\bpassword\"B\n" +
 	"\bLoginReq\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x1a\n" +
-	"\bpassword\x18\x02 \x01(\tR\bpassword\"\x1f\n" +
-	"\aAuthRes\x12\x14\n" +
-	"\x05token\x18\x01 \x01(\tR\x05token\"\x17\n" +
+	"\bpassword\x18\x02 \x01(\tR\bpassword\"Q\n" +
+	"\aAuthRes\x12!\n" +
+	"\faccess_token\x18\x01 \x01(\tR\vaccessToken\x12#\n" +
+	"\rrefresh_token\x18\x02 \x01(\tR\frefreshToken\"1\n" +
+	"\n" +
+	"RefreshReq\x12#\n" +
+	"\rrefresh_token\x18\x01 \x01(\tR\frefreshToken\"T\n" +
+	"\n" +
+	"RefreshRes\x12!\n" +
+	"\faccess_token\x18\x01 \x01(\tR\vaccessToken\x12#\n" +
+	"\rrefresh_token\x18\x02 \x01(\tR\frefreshToken\"\x17\n" +
 	"\x05IdReq\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\"'\n" +
 	"\aUserRes\x12\x1c\n" +
@@ -374,10 +486,11 @@ const file_Users_proto_rawDesc = "" +
 	"\x05users\x18\x01 \x03(\v2\b.pb.UserR\x05users\";\n" +
 	"\rUpdateUserReq\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x1a\n" +
-	"\busername\x18\x02 \x01(\tR\busername2\xdd\x01\n" +
+	"\busername\x18\x02 \x01(\tR\busername2\x8a\x02\n" +
 	"\x05Users\x12*\n" +
 	"\bRegister\x12\x0f.pb.RegisterReq\x1a\v.pb.AuthRes\"\x00\x12$\n" +
-	"\x05Login\x12\f.pb.LoginReq\x1a\v.pb.AuthRes\"\x00\x12'\n" +
+	"\x05Login\x12\f.pb.LoginReq\x1a\v.pb.AuthRes\"\x00\x12+\n" +
+	"\aRefresh\x12\x0e.pb.RefreshReq\x1a\x0e.pb.RefreshRes\"\x00\x12'\n" +
 	"\vGetUserById\x12\t.pb.IdReq\x1a\v.pb.UserRes\"\x00\x12)\n" +
 	"\tListUsers\x12\t.pb.Empty\x1a\x0f.pb.ListUserRes\"\x00\x12.\n" +
 	"\n" +
@@ -395,36 +508,40 @@ func file_Users_proto_rawDescGZIP() []byte {
 	return file_Users_proto_rawDescData
 }
 
-var file_Users_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_Users_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_Users_proto_goTypes = []any{
 	(*RegisterReq)(nil),   // 0: pb.RegisterReq
 	(*LoginReq)(nil),      // 1: pb.LoginReq
 	(*AuthRes)(nil),       // 2: pb.AuthRes
-	(*IdReq)(nil),         // 3: pb.IdReq
-	(*UserRes)(nil),       // 4: pb.UserRes
-	(*ListUserRes)(nil),   // 5: pb.ListUserRes
-	(*UpdateUserReq)(nil), // 6: pb.UpdateUserReq
-	(*User)(nil),          // 7: pb.User
-	(*Empty)(nil),         // 8: pb.Empty
+	(*RefreshReq)(nil),    // 3: pb.RefreshReq
+	(*RefreshRes)(nil),    // 4: pb.RefreshRes
+	(*IdReq)(nil),         // 5: pb.IdReq
+	(*UserRes)(nil),       // 6: pb.UserRes
+	(*ListUserRes)(nil),   // 7: pb.ListUserRes
+	(*UpdateUserReq)(nil), // 8: pb.UpdateUserReq
+	(*User)(nil),          // 9: pb.User
+	(*Empty)(nil),         // 10: pb.Empty
 }
 var file_Users_proto_depIdxs = []int32{
-	7, // 0: pb.UserRes.user:type_name -> pb.User
-	7, // 1: pb.ListUserRes.users:type_name -> pb.User
-	0, // 2: pb.Users.Register:input_type -> pb.RegisterReq
-	1, // 3: pb.Users.Login:input_type -> pb.LoginReq
-	3, // 4: pb.Users.GetUserById:input_type -> pb.IdReq
-	8, // 5: pb.Users.ListUsers:input_type -> pb.Empty
-	6, // 6: pb.Users.UpdateUser:input_type -> pb.UpdateUserReq
-	2, // 7: pb.Users.Register:output_type -> pb.AuthRes
-	2, // 8: pb.Users.Login:output_type -> pb.AuthRes
-	4, // 9: pb.Users.GetUserById:output_type -> pb.UserRes
-	5, // 10: pb.Users.ListUsers:output_type -> pb.ListUserRes
-	4, // 11: pb.Users.UpdateUser:output_type -> pb.UserRes
-	7, // [7:12] is the sub-list for method output_type
-	2, // [2:7] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	9,  // 0: pb.UserRes.user:type_name -> pb.User
+	9,  // 1: pb.ListUserRes.users:type_name -> pb.User
+	0,  // 2: pb.Users.Register:input_type -> pb.RegisterReq
+	1,  // 3: pb.Users.Login:input_type -> pb.LoginReq
+	3,  // 4: pb.Users.Refresh:input_type -> pb.RefreshReq
+	5,  // 5: pb.Users.GetUserById:input_type -> pb.IdReq
+	10, // 6: pb.Users.ListUsers:input_type -> pb.Empty
+	8,  // 7: pb.Users.UpdateUser:input_type -> pb.UpdateUserReq
+	2,  // 8: pb.Users.Register:output_type -> pb.AuthRes
+	2,  // 9: pb.Users.Login:output_type -> pb.AuthRes
+	4,  // 10: pb.Users.Refresh:output_type -> pb.RefreshRes
+	6,  // 11: pb.Users.GetUserById:output_type -> pb.UserRes
+	7,  // 12: pb.Users.ListUsers:output_type -> pb.ListUserRes
+	6,  // 13: pb.Users.UpdateUser:output_type -> pb.UserRes
+	8,  // [8:14] is the sub-list for method output_type
+	2,  // [2:8] is the sub-list for method input_type
+	2,  // [2:2] is the sub-list for extension type_name
+	2,  // [2:2] is the sub-list for extension extendee
+	0,  // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_Users_proto_init() }
@@ -439,7 +556,7 @@ func file_Users_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_Users_proto_rawDesc), len(file_Users_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

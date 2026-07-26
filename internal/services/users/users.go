@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/grpc/codes"
@@ -23,7 +24,35 @@ const (
 	alreadyExists = "user with this username already exists"
 )
 
-func (s *Service) Register(ctx context.Context, req *pb.RegisterReq) (*string, error) {
+type tokenPair struct {
+	accessToken  string
+	refreshToken string
+}
+
+func (s *Service) createTokenPair(ctx context.Context, user db.User) (*tokenPair, error) {
+	accessToken, err := s.tokenMaker.CreateToken(user.Username, user.Role, s.config.AccessTokenDuration)
+	if err != nil {
+		return nil, grpc_err.ErrorResponse(codes.Internal, "error to generate access token: %v", err)
+	}
+
+	refreshToken, err := s.tokenMaker.CreateToken(user.Username, user.Role, s.config.RefreshTokenDuration)
+	if err != nil {
+		return nil, grpc_err.ErrorResponse(codes.Internal, "error to generate refresh token: %v", err)
+	}
+
+	_, err = s.store.CreateRefreshToken(ctx, db.CreateRefreshTokenParams{
+		Token:     refreshToken,
+		Username:  user.Username,
+		ExpiresAt: time.Now().Add(s.config.RefreshTokenDuration),
+	})
+	if err != nil {
+		return nil, grpc_err.ErrorResponse(codes.Internal, "error to save refresh token: %v", err)
+	}
+
+	return &tokenPair{accessToken: accessToken, refreshToken: refreshToken}, nil
+}
+
+func (s *Service) Register(ctx context.Context, req *pb.RegisterReq) (*pb.AuthRes, error) {
 	hashPassword, err := password.HashPassword(req.GetPassword())
 	if err != nil {
 		return nil, grpc_err.ErrorResponse(codes.Internal, "error to hash password: %v", err)
@@ -36,22 +65,17 @@ func (s *Service) Register(ctx context.Context, req *pb.RegisterReq) (*string, e
 	user, err := s.store.CreateUser(ctx, arg)
 	if err != nil {
 		if db_err.ErrorCode(err) == db_err.UniqueViolation {
-			return nil, grpc_err.ErrorResponse(
-				codes.AlreadyExists,
-				alreadyExists,
-			)
+			return nil, grpc_err.ErrorResponse(codes.AlreadyExists, alreadyExists)
 		}
 		return nil, grpc_err.ErrorResponse(codes.Internal, "error to create a user: %v", err)
 	}
 
-	token, err := s.tokenMaker.CreateToken(user.Username, user.Role, s.config.AccessTokenDuration)
+	tokens, err := s.createTokenPair(ctx, user)
 	if err != nil {
-		return nil, grpc_err.ErrorResponse(codes.Internal, "error to generate token: %v", err)
+		return nil, err
 	}
 
-	msg := rabbitmq.UserCreated{
-		Username: user.Username,
-	}
+	msg := rabbitmq.UserCreated{Username: user.Username}
 	msgBody, err := json.Marshal(msg)
 	if err != nil {
 		log.Error().Err(err).Msg("error to marshal rabbitmq message")
@@ -62,10 +86,13 @@ func (s *Service) Register(ctx context.Context, req *pb.RegisterReq) (*string, e
 		}
 	}
 
-	return &token, nil
+	return &pb.AuthRes{
+		AccessToken:  tokens.accessToken,
+		RefreshToken: tokens.refreshToken,
+	}, nil
 }
 
-func (s *Service) Login(ctx context.Context, req *pb.LoginReq) (*string, error) {
+func (s *Service) Login(ctx context.Context, req *pb.LoginReq) (*pb.AuthRes, error) {
 	user, err := s.store.GetUserByUsername(ctx, req.GetUsername())
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -78,18 +105,63 @@ func (s *Service) Login(ctx context.Context, req *pb.LoginReq) (*string, error) 
 	if err != nil {
 		return nil, grpc_err.AuthError(fmt.Errorf("%v", authError))
 	}
-	token, err := s.tokenMaker.CreateToken(user.Username, user.Role, s.config.AccessTokenDuration)
+
+	tokens, err := s.createTokenPair(ctx, user)
 	if err != nil {
-		return nil, grpc_err.ErrorResponse(codes.Internal, "error to generate token: %v", err)
+		return nil, err
 	}
-	return &token, nil
+
+	return &pb.AuthRes{
+		AccessToken:  tokens.accessToken,
+		RefreshToken: tokens.refreshToken,
+	}, nil
+}
+
+func (s *Service) Refresh(ctx context.Context, req *pb.RefreshReq) (*pb.RefreshRes, error) {
+	refreshPayload, err := s.tokenMaker.VerifyToken(req.GetRefreshToken())
+	if err != nil {
+		return nil, grpc_err.AuthError(fmt.Errorf("invalid refresh token"))
+	}
+
+	refreshToken, err := s.store.GetRefreshToken(ctx, req.GetRefreshToken())
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, grpc_err.AuthError(fmt.Errorf("refresh token not found"))
+		}
+		return nil, grpc_err.ErrorResponse(codes.Internal, "error to get refresh token: %v", err)
+	}
+
+	if time.Now().After(refreshToken.ExpiresAt) {
+		s.store.DeleteRefreshToken(ctx, req.GetRefreshToken())
+		return nil, grpc_err.AuthError(fmt.Errorf("refresh token expired"))
+	}
+
+	user, err := s.store.GetUserByUsername(ctx, refreshPayload.Username)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, grpc_err.AuthError(fmt.Errorf("user not found"))
+		}
+		return nil, grpc_err.ErrorResponse(codes.Internal, "error to get user: %v", err)
+	}
+
+	s.store.DeleteRefreshToken(ctx, req.GetRefreshToken())
+
+	tokens, err := s.createTokenPair(ctx, user)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.RefreshRes{
+		AccessToken:  tokens.accessToken,
+		RefreshToken: tokens.refreshToken,
+	}, nil
 }
 
 func (s *Service) GetUserById(ctx context.Context, req *pb.IdReq) (*db.User, error) {
 	user, err := s.store.GetUserById(ctx, req.GetId())
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, grpc_err.AuthError(fmt.Errorf("%v", authError))
+			return nil, grpc_err.AuthError(fmt.Errorf("%v", userNotFound))
 		}
 		return nil, grpc_err.ErrorResponse(codes.Internal, "error to get user: %v", err)
 	}
@@ -99,7 +171,7 @@ func (s *Service) GetUserById(ctx context.Context, req *pb.IdReq) (*db.User, err
 func (s *Service) ListUsers(ctx context.Context) (*[]db.User, error) {
 	users, err := s.store.ListUsers(ctx)
 	if err != nil {
-		return nil, grpc_err.ErrorResponse(codes.Internal, "error to lsit users: %v", err)
+		return nil, grpc_err.ErrorResponse(codes.Internal, "error to list users: %v", err)
 	}
 	return &users, nil
 }
@@ -112,7 +184,6 @@ func (s *Service) UpdateUser(ctx context.Context, req *pb.UpdateUserReq) (*db.Us
 
 	user, err := s.store.GetUserById(ctx, req.GetId())
 	if err != nil {
-
 		if err == pgx.ErrNoRows {
 			return nil, grpc_err.ErrorResponse(codes.NotFound, userNotFound)
 		}
@@ -140,6 +211,5 @@ func (s *Service) UpdateUser(ctx context.Context, req *pb.UpdateUserReq) (*db.Us
 			log.Error().Err(err).Msg("error to send rabbitmq message")
 		}
 	}
-	log.Info().Msg("sent")
 	return &updatedUser, nil
 }

@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	Users_Register_FullMethodName    = "/pb.Users/Register"
 	Users_Login_FullMethodName       = "/pb.Users/Login"
+	Users_Refresh_FullMethodName     = "/pb.Users/Refresh"
 	Users_GetUserById_FullMethodName = "/pb.Users/GetUserById"
 	Users_ListUsers_FullMethodName   = "/pb.Users/ListUsers"
 	Users_UpdateUser_FullMethodName  = "/pb.Users/UpdateUser"
@@ -32,6 +33,7 @@ const (
 type UsersClient interface {
 	Register(ctx context.Context, in *RegisterReq, opts ...grpc.CallOption) (*AuthRes, error)
 	Login(ctx context.Context, in *LoginReq, opts ...grpc.CallOption) (*AuthRes, error)
+	Refresh(ctx context.Context, in *RefreshReq, opts ...grpc.CallOption) (*RefreshRes, error)
 	GetUserById(ctx context.Context, in *IdReq, opts ...grpc.CallOption) (*UserRes, error)
 	ListUsers(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*ListUserRes, error)
 	UpdateUser(ctx context.Context, in *UpdateUserReq, opts ...grpc.CallOption) (*UserRes, error)
@@ -59,6 +61,16 @@ func (c *usersClient) Login(ctx context.Context, in *LoginReq, opts ...grpc.Call
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(AuthRes)
 	err := c.cc.Invoke(ctx, Users_Login_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *usersClient) Refresh(ctx context.Context, in *RefreshReq, opts ...grpc.CallOption) (*RefreshRes, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RefreshRes)
+	err := c.cc.Invoke(ctx, Users_Refresh_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -101,6 +113,7 @@ func (c *usersClient) UpdateUser(ctx context.Context, in *UpdateUserReq, opts ..
 type UsersServer interface {
 	Register(context.Context, *RegisterReq) (*AuthRes, error)
 	Login(context.Context, *LoginReq) (*AuthRes, error)
+	Refresh(context.Context, *RefreshReq) (*RefreshRes, error)
 	GetUserById(context.Context, *IdReq) (*UserRes, error)
 	ListUsers(context.Context, *Empty) (*ListUserRes, error)
 	UpdateUser(context.Context, *UpdateUserReq) (*UserRes, error)
@@ -119,6 +132,9 @@ func (UnimplementedUsersServer) Register(context.Context, *RegisterReq) (*AuthRe
 }
 func (UnimplementedUsersServer) Login(context.Context, *LoginReq) (*AuthRes, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Login not implemented")
+}
+func (UnimplementedUsersServer) Refresh(context.Context, *RefreshReq) (*RefreshRes, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Refresh not implemented")
 }
 func (UnimplementedUsersServer) GetUserById(context.Context, *IdReq) (*UserRes, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUserById not implemented")
@@ -182,6 +198,24 @@ func _Users_Login_Handler(srv interface{}, ctx context.Context, dec func(interfa
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(UsersServer).Login(ctx, req.(*LoginReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Users_Refresh_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RefreshReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UsersServer).Refresh(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Users_Refresh_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UsersServer).Refresh(ctx, req.(*RefreshReq))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -254,6 +288,10 @@ var Users_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Login",
 			Handler:    _Users_Login_Handler,
+		},
+		{
+			MethodName: "Refresh",
+			Handler:    _Users_Refresh_Handler,
 		},
 		{
 			MethodName: "GetUserById",

@@ -9,6 +9,7 @@ import "Entity.proto";
 service Users {
   rpc Register(RegisterReq) returns (AuthRes) {}
   rpc Login(LoginReq) returns (AuthRes) {}
+  rpc Refresh(RefreshReq) returns (RefreshRes) {}
   rpc GetUserById(IdReq) returns (UserRes) {}
   rpc ListUsers(Empty) returns (ListUserRes) {}
   rpc UpdateUser(UpdateUserReq) returns (UserRes) {}
@@ -25,7 +26,17 @@ message LoginReq {
 }
 
 message AuthRes {
-  string token = 1;
+  string access_token = 1;
+  string refresh_token = 2;
+}
+
+message RefreshReq {
+  string refresh_token = 1;
+}
+
+message RefreshRes {
+  string access_token = 1;
+  string refresh_token = 2;
 }
 
 message IdReq {

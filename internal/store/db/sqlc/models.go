@@ -4,6 +4,10 @@
 
 package db
 
+import (
+	"time"
+)
+
 type Board struct {
 	ID     int32 `json:"id"`
 	UserID int32 `json:"user_id"`
@@ -13,6 +17,12 @@ type Feedback struct {
 	ID      int32 `json:"id"`
 	UserID  int32 `json:"user_id"`
 	BoardID int32 `json:"board_id"`
+}
+
+type RefreshToken struct {
+	Token     string    `json:"token"`
+	Username  string    `json:"username"`
+	ExpiresAt time.Time `json:"expires_at"`
 }
 
 type User struct {
