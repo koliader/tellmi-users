@@ -2,11 +2,8 @@ package db
 
 import (
 	"context"
-	"log"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-
-	"github.com/koliader/tellmi-users/internal/lib/config"
 )
 
 type Store interface {
@@ -24,17 +21,11 @@ type Store interface {
 type SQLStore struct {
 	connPool *pgxpool.Pool
 	*Queries
-	config config.Config
 }
 
 func NewStore(connPool *pgxpool.Pool) Store {
-	config, err := config.LoadConfig("../../../..")
-	if err != nil {
-		log.Fatal("cannot load config:", err)
-	}
 	return &SQLStore{
 		connPool: connPool,
 		Queries:  New(connPool),
-		config:   config,
 	}
 }

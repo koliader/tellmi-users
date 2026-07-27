@@ -5,9 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/koliader/tellmi-users/internal/lib/random"
-	"github.com/koliader/tellmi-users/internal/lib/token"
-	"github.com/koliader/tellmi-users/internal/pb"
+	"github.com/koliader/tellmi-sdk/token"
+	pb "github.com/koliader/tellmi-sdk/proto/pb"
 	db "github.com/koliader/tellmi-users/internal/store/db/sqlc"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -47,7 +46,7 @@ func (m *mockUserService) UpdateUser(ctx context.Context, req *pb.UpdateUserReq)
 // --- mock Middleware ---
 
 type mockMiddleware struct {
-	authorizeUserFn func(ctx context.Context) (*token.Payload, error)
+	authorizeUserFn  func(ctx context.Context) (*token.Payload, error)
 	authorizeAdminFn func(ctx context.Context) (*token.Payload, error)
 }
 
@@ -82,7 +81,7 @@ func newDeniedMiddleware() *mockMiddleware {
 	}
 }
 
-// --- Register tests (no middleware) ---
+// --- Register tests ---
 
 func TestRegister(t *testing.T) {
 	mock := &mockUserService{
@@ -92,7 +91,7 @@ func TestRegister(t *testing.T) {
 	}
 
 	server := NewServer(mock, newAuthorizedMiddleware())
-	res, err := server.Register(context.Background(), &pb.RegisterReq{Username: random.RandomString(10), Password: random.RandomString(10)})
+	res, err := server.Register(context.Background(), &pb.RegisterReq{Username: "alice", Password: "pass123"})
 	require.NoError(t, err)
 	require.Equal(t, "AccessToken", res.AccessToken)
 	require.Equal(t, "RefreshToken", res.RefreshToken)
@@ -113,7 +112,7 @@ func TestRegisterDuplicateUser(t *testing.T) {
 	require.Equal(t, codes.AlreadyExists, st.Code())
 }
 
-// --- Login tests (no middleware) ---
+// --- Login tests ---
 
 func TestLogin(t *testing.T) {
 	mock := &mockUserService{
@@ -123,7 +122,7 @@ func TestLogin(t *testing.T) {
 	}
 
 	server := NewServer(mock, newAuthorizedMiddleware())
-	res, err := server.Login(context.Background(), &pb.LoginReq{Username: random.RandomString(10), Password: random.RandomString(10)})
+	res, err := server.Login(context.Background(), &pb.LoginReq{Username: "alice", Password: "pass123"})
 	require.NoError(t, err)
 	require.Equal(t, "AccessToken", res.AccessToken)
 	require.Equal(t, "RefreshToken", res.RefreshToken)
@@ -135,7 +134,7 @@ func TestLoginInvalidLoginData(t *testing.T) {
 	}}
 
 	server := NewServer(mock, newAuthorizedMiddleware())
-	_, err := server.Login(context.Background(), &pb.LoginReq{Username: random.RandomString(10), Password: random.RandomString(10)})
+	_, err := server.Login(context.Background(), &pb.LoginReq{Username: "alice", Password: "pass123"})
 	require.Error(t, err)
 
 	st, ok := status.FromError(err)
@@ -144,7 +143,7 @@ func TestLoginInvalidLoginData(t *testing.T) {
 	require.Equal(t, "invalid login or password", st.Message())
 }
 
-// --- Refresh tests (no middleware) ---
+// --- Refresh tests ---
 
 func TestRefresh(t *testing.T) {
 	mock := &mockUserService{
@@ -160,16 +159,12 @@ func TestRefresh(t *testing.T) {
 	require.Equal(t, "newRefresh", res.RefreshToken)
 }
 
-// --- GetUserById tests (admin middleware) ---
+// --- GetUserById tests ---
 
 func TestGetUserByIdSuccess(t *testing.T) {
 	mock := &mockUserService{
 		getUserByIdFn: func(ctx context.Context, req *pb.IdReq) (*db.User, error) {
-			return &db.User{
-				ID:       1,
-				Username: "alice",
-				Role:     "USER",
-			}, nil
+			return &db.User{ID: 1, Username: "alice", Role: "USER"}, nil
 		},
 	}
 
@@ -209,16 +204,12 @@ func TestGetUserByIdUnauthorized(t *testing.T) {
 	require.Equal(t, codes.Unauthenticated, st.Code())
 }
 
-// --- ListUsers tests (user middleware) ---
+// --- ListUsers tests ---
 
 func TestListUsersSuccess(t *testing.T) {
 	mock := &mockUserService{
 		listUsersFn: func(ctx context.Context) (*[]db.User, error) {
-			return &[]db.User{{
-				ID:       1,
-				Username: "alice",
-				Role:     "USER",
-			}}, nil
+			return &[]db.User{{ID: 1, Username: "alice", Role: "USER"}}, nil
 		},
 	}
 
@@ -239,7 +230,7 @@ func TestListUsersUnauthorized(t *testing.T) {
 	require.Equal(t, codes.Unauthenticated, st.Code())
 }
 
-// --- UpdateUser tests (user middleware) ---
+// --- UpdateUser tests ---
 
 func TestUpdateUserSuccess(t *testing.T) {
 	mock := &mockUserService{

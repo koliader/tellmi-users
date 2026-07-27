@@ -4,7 +4,7 @@ import (
 	"context"
 
 	db "github.com/koliader/tellmi-users/internal/store/db/sqlc"
-	pb "github.com/koliader/tellmi-users/internal/pb"
+	pb "github.com/koliader/tellmi-sdk/proto/pb"
 )
 
 type UserService interface {

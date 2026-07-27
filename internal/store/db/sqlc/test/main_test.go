@@ -6,16 +6,22 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/koliader/tellmi-users/internal/lib/config"
+	"github.com/koliader/tellmi-sdk/config"
 	db "github.com/koliader/tellmi-users/internal/store/db/sqlc"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
 
+type testConfig struct {
+	DBSource    string `mapstructure:"DB_SOURCE"`
+	Environment string `mapstructure:"ENVIRONMENT"`
+}
+
 var testStore db.Store
 
 func TestMain(m *testing.M) {
-	cfg, err := config.LoadConfig("../../../../..")
+	var cfg testConfig
+	err := config.LoadConfig("../../../../..", &cfg)
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot load config")
 	}

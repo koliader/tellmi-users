@@ -6,11 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/koliader/tellmi-users/internal/lib/config"
+	"github.com/koliader/tellmi-sdk/rabbitmq"
+	"github.com/koliader/tellmi-sdk/token"
+	pb "github.com/koliader/tellmi-sdk/proto/pb"
 	"github.com/koliader/tellmi-users/internal/lib/password"
-	"github.com/koliader/tellmi-users/internal/lib/rabbitmq"
-	"github.com/koliader/tellmi-users/internal/lib/token"
-	pb "github.com/koliader/tellmi-users/internal/pb"
 	db "github.com/koliader/tellmi-users/internal/store/db/sqlc"
 	"github.com/stretchr/testify/require"
 )
@@ -74,12 +73,7 @@ func newTestService(t *testing.T, store db.Store, sender rabbitmq.MessageSender)
 	maker, err := token.NewJWTMaker(key)
 	require.NoError(t, err)
 
-	cfg := config.Config{
-		AccessTokenDuration:  time.Minute,
-		RefreshTokenDuration: time.Hour,
-	}
-
-	svc, err := NewService(maker, cfg, store, sender)
+	svc, err := NewService(maker, time.Minute, time.Hour, store, sender)
 	require.NoError(t, err)
 	return svc
 }

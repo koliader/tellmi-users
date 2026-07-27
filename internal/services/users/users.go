@@ -9,12 +9,12 @@ import (
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/grpc/codes"
 
-	db_err "github.com/koliader/tellmi-users/internal/lib/error/db"
-	grpc_err "github.com/koliader/tellmi-users/internal/lib/error/service"
+	"github.com/koliader/tellmi-sdk/errors/db"
+	"github.com/koliader/tellmi-sdk/errors/service"
+	"github.com/koliader/tellmi-sdk/rabbitmq"
+	pb "github.com/koliader/tellmi-sdk/proto/pb"
 	"github.com/koliader/tellmi-users/internal/lib/password"
-	"github.com/koliader/tellmi-users/internal/lib/rabbitmq"
-	pb "github.com/koliader/tellmi-users/internal/pb"
-	db "github.com/koliader/tellmi-users/internal/store/db/sqlc"
+	db_store "github.com/koliader/tellmi-users/internal/store/db/sqlc"
 	"github.com/rs/zerolog/log"
 )
 
@@ -29,24 +29,24 @@ type tokenPair struct {
 	refreshToken string
 }
 
-func (s *Service) createTokenPair(ctx context.Context, user db.User) (*tokenPair, error) {
-	accessToken, err := s.tokenMaker.CreateToken(user.Username, user.Role, s.config.AccessTokenDuration)
+func (s *Service) createTokenPair(ctx context.Context, user db_store.User) (*tokenPair, error) {
+	accessToken, err := s.tokenMaker.CreateToken(user.Username, user.Role, s.accessTokenDuration)
 	if err != nil {
-		return nil, grpc_err.ErrorResponse(codes.Internal, "error to generate access token: %v", err)
+		return nil, errsvc.ErrorResponse(codes.Internal, "error to generate access token: %v", err)
 	}
 
-	refreshToken, err := s.tokenMaker.CreateToken(user.Username, user.Role, s.config.RefreshTokenDuration)
+	refreshToken, err := s.tokenMaker.CreateToken(user.Username, user.Role, s.refreshTokenDuration)
 	if err != nil {
-		return nil, grpc_err.ErrorResponse(codes.Internal, "error to generate refresh token: %v", err)
+		return nil, errsvc.ErrorResponse(codes.Internal, "error to generate refresh token: %v", err)
 	}
 
-	_, err = s.store.CreateRefreshToken(ctx, db.CreateRefreshTokenParams{
+	_, err = s.store.CreateRefreshToken(ctx, db_store.CreateRefreshTokenParams{
 		Token:     refreshToken,
 		Username:  user.Username,
-		ExpiresAt: time.Now().Add(s.config.RefreshTokenDuration),
+		ExpiresAt: time.Now().Add(s.refreshTokenDuration),
 	})
 	if err != nil {
-		return nil, grpc_err.ErrorResponse(codes.Internal, "error to save refresh token: %v", err)
+		return nil, errsvc.ErrorResponse(codes.Internal, "error to save refresh token: %v", err)
 	}
 
 	return &tokenPair{accessToken: accessToken, refreshToken: refreshToken}, nil
@@ -55,19 +55,19 @@ func (s *Service) createTokenPair(ctx context.Context, user db.User) (*tokenPair
 func (s *Service) Register(ctx context.Context, req *pb.RegisterReq) (*pb.AuthRes, error) {
 	hashPassword, err := password.HashPassword(req.GetPassword())
 	if err != nil {
-		return nil, grpc_err.ErrorResponse(codes.Internal, "error to hash password: %v", err)
+		return nil, errsvc.ErrorResponse(codes.Internal, "error to hash password: %v", err)
 	}
 
-	arg := db.CreateUserParams{
+	arg := db_store.CreateUserParams{
 		Password: hashPassword,
 		Username: req.GetUsername(),
 	}
 	user, err := s.store.CreateUser(ctx, arg)
 	if err != nil {
-		if db_err.ErrorCode(err) == db_err.UniqueViolation {
-			return nil, grpc_err.ErrorResponse(codes.AlreadyExists, alreadyExists)
+		if errdb.ErrorCode(err) == errdb.UniqueViolation {
+			return nil, errsvc.ErrorResponse(codes.AlreadyExists, alreadyExists)
 		}
-		return nil, grpc_err.ErrorResponse(codes.Internal, "error to create a user: %v", err)
+		return nil, errsvc.ErrorResponse(codes.Internal, "error to create a user: %v", err)
 	}
 
 	tokens, err := s.createTokenPair(ctx, user)
@@ -96,14 +96,14 @@ func (s *Service) Login(ctx context.Context, req *pb.LoginReq) (*pb.AuthRes, err
 	user, err := s.store.GetUserByUsername(ctx, req.GetUsername())
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, grpc_err.AuthError(fmt.Errorf("%v", authError))
+			return nil, errsvc.AuthError(fmt.Errorf("%v", authError))
 		}
-		return nil, grpc_err.ErrorResponse(codes.Internal, "error to get user: %v", err)
+		return nil, errsvc.ErrorResponse(codes.Internal, "error to get user: %v", err)
 	}
 
 	err = password.CheckPassword(user.Password, req.GetPassword())
 	if err != nil {
-		return nil, grpc_err.AuthError(fmt.Errorf("%v", authError))
+		return nil, errsvc.AuthError(fmt.Errorf("%v", authError))
 	}
 
 	tokens, err := s.createTokenPair(ctx, user)
@@ -120,28 +120,28 @@ func (s *Service) Login(ctx context.Context, req *pb.LoginReq) (*pb.AuthRes, err
 func (s *Service) Refresh(ctx context.Context, req *pb.RefreshReq) (*pb.RefreshRes, error) {
 	refreshPayload, err := s.tokenMaker.VerifyToken(req.GetRefreshToken())
 	if err != nil {
-		return nil, grpc_err.AuthError(fmt.Errorf("invalid refresh token"))
+		return nil, errsvc.AuthError(fmt.Errorf("invalid refresh token"))
 	}
 
 	refreshToken, err := s.store.GetRefreshToken(ctx, req.GetRefreshToken())
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, grpc_err.AuthError(fmt.Errorf("refresh token not found"))
+			return nil, errsvc.AuthError(fmt.Errorf("refresh token not found"))
 		}
-		return nil, grpc_err.ErrorResponse(codes.Internal, "error to get refresh token: %v", err)
+		return nil, errsvc.ErrorResponse(codes.Internal, "error to get refresh token: %v", err)
 	}
 
 	if time.Now().After(refreshToken.ExpiresAt) {
 		s.store.DeleteRefreshToken(ctx, req.GetRefreshToken())
-		return nil, grpc_err.AuthError(fmt.Errorf("refresh token expired"))
+		return nil, errsvc.AuthError(fmt.Errorf("refresh token expired"))
 	}
 
 	user, err := s.store.GetUserByUsername(ctx, refreshPayload.Username)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, grpc_err.AuthError(fmt.Errorf("user not found"))
+			return nil, errsvc.AuthError(fmt.Errorf("user not found"))
 		}
-		return nil, grpc_err.ErrorResponse(codes.Internal, "error to get user: %v", err)
+		return nil, errsvc.ErrorResponse(codes.Internal, "error to get user: %v", err)
 	}
 
 	s.store.DeleteRefreshToken(ctx, req.GetRefreshToken())
@@ -157,27 +157,27 @@ func (s *Service) Refresh(ctx context.Context, req *pb.RefreshReq) (*pb.RefreshR
 	}, nil
 }
 
-func (s *Service) GetUserById(ctx context.Context, req *pb.IdReq) (*db.User, error) {
+func (s *Service) GetUserById(ctx context.Context, req *pb.IdReq) (*db_store.User, error) {
 	user, err := s.store.GetUserById(ctx, req.GetId())
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, grpc_err.AuthError(fmt.Errorf("%v", userNotFound))
+			return nil, errsvc.AuthError(fmt.Errorf("%v", userNotFound))
 		}
-		return nil, grpc_err.ErrorResponse(codes.Internal, "error to get user: %v", err)
+		return nil, errsvc.ErrorResponse(codes.Internal, "error to get user: %v", err)
 	}
 	return &user, nil
 }
 
-func (s *Service) ListUsers(ctx context.Context) (*[]db.User, error) {
+func (s *Service) ListUsers(ctx context.Context) (*[]db_store.User, error) {
 	users, err := s.store.ListUsers(ctx)
 	if err != nil {
-		return nil, grpc_err.ErrorResponse(codes.Internal, "error to list users: %v", err)
+		return nil, errsvc.ErrorResponse(codes.Internal, "error to list users: %v", err)
 	}
 	return &users, nil
 }
 
-func (s *Service) UpdateUser(ctx context.Context, req *pb.UpdateUserReq) (*db.User, error) {
-	arg := db.UpdateUserParams{
+func (s *Service) UpdateUser(ctx context.Context, req *pb.UpdateUserReq) (*db_store.User, error) {
+	arg := db_store.UpdateUserParams{
 		ID:       req.GetId(),
 		Username: req.GetUsername(),
 	}
@@ -185,18 +185,18 @@ func (s *Service) UpdateUser(ctx context.Context, req *pb.UpdateUserReq) (*db.Us
 	user, err := s.store.GetUserById(ctx, req.GetId())
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, grpc_err.ErrorResponse(codes.NotFound, userNotFound)
+			return nil, errsvc.ErrorResponse(codes.NotFound, userNotFound)
 		}
 	}
 	updatedUser, err := s.store.UpdateUser(ctx, arg)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, grpc_err.ErrorResponse(codes.NotFound, userNotFound)
+			return nil, errsvc.ErrorResponse(codes.NotFound, userNotFound)
 		}
-		if db_err.ErrorCode(err) == db_err.UniqueViolation {
-			return nil, grpc_err.ErrorResponse(codes.AlreadyExists, alreadyExists)
+		if errdb.ErrorCode(err) == errdb.UniqueViolation {
+			return nil, errsvc.ErrorResponse(codes.AlreadyExists, alreadyExists)
 		}
-		return nil, grpc_err.ErrorResponse(codes.Internal, "error to update user: %v", err)
+		return nil, errsvc.ErrorResponse(codes.Internal, "error to update user: %v", err)
 	}
 	msg := rabbitmq.UserUpdated{
 		Username:    user.Username,
