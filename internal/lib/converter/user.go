@@ -7,8 +7,10 @@ import (
 
 func ConvertUser(user db.User) *pb.User {
 	u := pb.User{
-		Id:       user.ID,
-		Username: user.Username,
+		Id:        user.ID,
+		Username:  user.Username,
+		Role:      user.Role,
+		IsBlocked: user.IsBlocked,
 	}
 
 	return &u
