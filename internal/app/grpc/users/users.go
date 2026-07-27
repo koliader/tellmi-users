@@ -35,7 +35,7 @@ func (s *Server) GetUserById(ctx context.Context, req *pb.IdReq) (*pb.UserRes, e
 }
 
 func (s *Server) ListUsers(ctx context.Context, req *pb.Empty) (*pb.ListUserRes, error) {
-	_, err := s.middleware.AuthorizeUser(ctx)
+	_, err := s.middleware.AuthorizeAdmin(ctx)
 	if err != nil {
 		return nil, errsvc.ErrorResponse(codes.Unauthenticated, "error to authorize user: %v", err)
 	}
