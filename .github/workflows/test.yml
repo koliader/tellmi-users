@@ -34,6 +34,12 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
 
+      - name: Check out tellmi-sdk
+        uses: actions/checkout@v4
+        with:
+          repository: koliader/tellmi-sdk
+          path: ../tellmi-sdk
+
       - name: Install golang-migrate
         run: |
           curl -L https://github.com/golang-migrate/migrate/releases/download/v4.17.0/migrate.linux-amd64.tar.gz | tar xvz
@@ -46,5 +52,8 @@ jobs:
       - name: Run unit tests
         run: go test -v -cover -short ./internal/lib/...
 
-      - name: Run integration tests
+      - name: Run DB store tests
         run: go test -v -cover ./internal/store/db/sqlc/test/...
+
+      - name: Run gRPC integration tests
+        run: go test -v -cover ./internal/app/grpc/users/...
