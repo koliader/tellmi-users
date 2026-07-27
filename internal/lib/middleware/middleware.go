@@ -2,12 +2,12 @@ package middleware
 
 import "github.com/koliader/tellmi-users/internal/lib/token"
 
-type Middleware struct {
+type GrpcMiddleware struct {
 	tokenMaker token.Maker
 }
 
-func NewMiddleware(tokenMaker token.Maker) *Middleware {
-	return &Middleware{
+func NewMiddleware(tokenMaker token.Maker) *GrpcMiddleware {
+	return &GrpcMiddleware{
 		tokenMaker: tokenMaker,
 	}
 }

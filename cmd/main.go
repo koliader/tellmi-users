@@ -10,6 +10,7 @@ import (
 	users_server "github.com/koliader/tellmi-users/internal/app/grpc/users"
 	"github.com/koliader/tellmi-users/internal/lib/config"
 	"github.com/koliader/tellmi-users/internal/lib/logger"
+	"github.com/koliader/tellmi-users/internal/lib/middleware"
 	"github.com/koliader/tellmi-users/internal/lib/rabbitmq"
 	"github.com/koliader/tellmi-users/internal/lib/token"
 	pb "github.com/koliader/tellmi-users/internal/pb"
@@ -60,7 +61,9 @@ func runGrpcServer(config config.Config, store db.Store) {
 		log.Fatal().Err(err).Msg(fmt.Sprintf("cannot create users service: %v", err))
 	}
 
-	usersServer := users_server.NewServer(svc)
+	middleware := middleware.NewMiddleware(tokenMaker)
+
+	usersServer := users_server.NewServer(svc, middleware)
 	listener, err := net.Listen("tcp", config.ServerAddress)
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot create listener")

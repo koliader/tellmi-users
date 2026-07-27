@@ -15,7 +15,7 @@ const (
 	admin               = "ADMIN"
 )
 
-func (m *Middleware) AuthorizeUser(ctx context.Context) (*token.Payload, error) {
+func (m *GrpcMiddleware) AuthorizeUser(ctx context.Context) (*token.Payload, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return nil, fmt.Errorf("missing metadata")

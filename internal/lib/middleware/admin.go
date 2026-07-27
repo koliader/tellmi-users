@@ -9,7 +9,7 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-func (m *Middleware) AuthorizeAdmin(ctx context.Context) (*token.Payload, error) {
+func (m *GrpcMiddleware) AuthorizeAdmin(ctx context.Context) (*token.Payload, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return nil, fmt.Errorf("missing metadata")

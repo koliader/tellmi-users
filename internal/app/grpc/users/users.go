@@ -4,10 +4,11 @@ import (
 	"context"
 
 	"github.com/koliader/tellmi-users/internal/lib/converter"
+	grpc_err "github.com/koliader/tellmi-users/internal/lib/error/service"
 	pb "github.com/koliader/tellmi-users/internal/pb"
+	"google.golang.org/grpc/codes"
 )
 
-// TODO add middleware using
 func (s *Server) Register(ctx context.Context, req *pb.RegisterReq) (*pb.AuthRes, error) {
 	return s.users_service.Register(ctx, req)
 }
@@ -21,6 +22,11 @@ func (s *Server) Refresh(ctx context.Context, req *pb.RefreshReq) (*pb.RefreshRe
 }
 
 func (s *Server) GetUserById(ctx context.Context, req *pb.IdReq) (*pb.UserRes, error) {
+	_, err := s.middleware.AuthorizeAdmin(ctx)
+	if err != nil {
+		return nil, grpc_err.ErrorResponse(codes.Unauthenticated, "error to authorize admin: %v", err)
+	}
+
 	user, err := s.users_service.GetUserById(ctx, req)
 	if err != nil {
 		return nil, err
@@ -29,6 +35,11 @@ func (s *Server) GetUserById(ctx context.Context, req *pb.IdReq) (*pb.UserRes, e
 }
 
 func (s *Server) ListUsers(ctx context.Context, req *pb.Empty) (*pb.ListUserRes, error) {
+	_, err := s.middleware.AuthorizeUser(ctx)
+	if err != nil {
+		return nil, grpc_err.ErrorResponse(codes.Unauthenticated, "error to authorize user: %v", err)
+	}
+
 	users, err := s.users_service.ListUsers(ctx)
 	if err != nil {
 		return nil, err
@@ -37,6 +48,11 @@ func (s *Server) ListUsers(ctx context.Context, req *pb.Empty) (*pb.ListUserRes,
 }
 
 func (s *Server) UpdateUser(ctx context.Context, req *pb.UpdateUserReq) (*pb.UserRes, error) {
+	_, err := s.middleware.AuthorizeUser(ctx)
+	if err != nil {
+		return nil, grpc_err.ErrorResponse(codes.Unauthenticated, "error to authorize user: %v", err)
+	}
+
 	user, err := s.users_service.UpdateUser(ctx, req)
 	if err != nil {
 		return nil, err
