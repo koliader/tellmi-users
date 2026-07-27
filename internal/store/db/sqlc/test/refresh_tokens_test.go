@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	db "github.com/koliader/tellmi-users/internal/store/db/sqlc"
 	"github.com/koliader/tellmi-users/internal/lib/random"
+	db "github.com/koliader/tellmi-users/internal/store/db/sqlc"
 	"github.com/stretchr/testify/require"
 )
 

@@ -10,7 +10,10 @@ import (
 	users_server "github.com/koliader/tellmi-users/internal/app/grpc/users"
 	"github.com/koliader/tellmi-users/internal/lib/config"
 	"github.com/koliader/tellmi-users/internal/lib/logger"
+	"github.com/koliader/tellmi-users/internal/lib/rabbitmq"
+	"github.com/koliader/tellmi-users/internal/lib/token"
 	pb "github.com/koliader/tellmi-users/internal/pb"
+	users_service "github.com/koliader/tellmi-users/internal/services/users"
 	db "github.com/koliader/tellmi-users/internal/store/db/sqlc"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -41,10 +44,23 @@ func main() {
 }
 
 func runGrpcServer(config config.Config, store db.Store) {
-	usersServer, err := users_server.NewServer(config, store)
+	tokenMaker, err := token.NewJWTMaker(config.TokenKey)
+	if err != nil {
+		log.Fatal().Err(err).Msg("cannot create token maker")
+	}
+
+	rabbitmqClient, err := rabbitmq.NewRabbitmqClient(config)
+	if err != nil {
+		log.Fatal().Err(err).Msg("cannot create rabbitmq client")
+	}
+	defer rabbitmqClient.Close()
+
+	svc, err := users_service.NewService(tokenMaker, config, store, rabbitmqClient)
 	if err != nil {
 		log.Fatal().Err(err).Msg(fmt.Sprintf("cannot create users service: %v", err))
 	}
+
+	usersServer := users_server.NewServer(svc)
 	listener, err := net.Listen("tcp", config.ServerAddress)
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot create listener")

@@ -8,16 +8,12 @@ import (
 )
 
 type Service struct {
-	tokenMaker     token.Maker
-	config         config.Config
-	store          db.Store
-	RabbitmqClient *rabbitmq.Client
+	tokenMaker    token.Maker
+	config        config.Config
+	store         db.Store
+	messageSender rabbitmq.MessageSender
 }
 
-func NewService(tokenMaker token.Maker, config config.Config, store db.Store) (*Service, error) {
-	rabbitmqClient, err := rabbitmq.NewRabbitmqClient(config)
-	if err != nil {
-		return nil, err
-	}
-	return &Service{tokenMaker, config, store, rabbitmqClient}, nil
+func NewService(tokenMaker token.Maker, config config.Config, store db.Store, sender rabbitmq.MessageSender) (*Service, error) {
+	return &Service{tokenMaker, config, store, sender}, nil
 }

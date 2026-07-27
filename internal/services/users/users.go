@@ -80,7 +80,7 @@ func (s *Service) Register(ctx context.Context, req *pb.RegisterReq) (*pb.AuthRe
 	if err != nil {
 		log.Error().Err(err).Msg("error to marshal rabbitmq message")
 	} else {
-		err = s.RabbitmqClient.SendMessage(rabbitmq.UserCreatedQueue, msgBody)
+		err = s.messageSender.SendMessage(rabbitmq.UserCreatedQueue, msgBody)
 		if err != nil {
 			log.Error().Err(err).Msg("error to send rabbitmq message")
 		}
@@ -206,7 +206,7 @@ func (s *Service) UpdateUser(ctx context.Context, req *pb.UpdateUserReq) (*db.Us
 	if err != nil {
 		log.Error().Err(err).Msg("error to marshal rabbitmq message")
 	} else {
-		err = s.RabbitmqClient.SendMessage(rabbitmq.UserUpdatedQueue, msgBody)
+		err = s.messageSender.SendMessage(rabbitmq.UserUpdatedQueue, msgBody)
 		if err != nil {
 			log.Error().Err(err).Msg("error to send rabbitmq message")
 		}
