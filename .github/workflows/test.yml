@@ -38,6 +38,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: koliader/tellmi-sdk
+          token: ${{ secrets.PAT_TOKEN }}
           path: tellmi-sdk
 
       - name: Point go.mod replace to CI path
