@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/grpc/codes"
 
 	"github.com/koliader/tellmi-sdk/errors/db"
 	"github.com/koliader/tellmi-sdk/errors/service"
-	"github.com/koliader/tellmi-sdk/rabbitmq"
 	pb "github.com/koliader/tellmi-sdk/proto/pb"
+	"github.com/koliader/tellmi-sdk/rabbitmq"
 	"github.com/koliader/tellmi-users/internal/lib/password"
 	db_store "github.com/koliader/tellmi-users/internal/store/db/sqlc"
 	"github.com/rs/zerolog/log"
@@ -30,12 +31,12 @@ type tokenPair struct {
 }
 
 func (s *Service) createTokenPair(ctx context.Context, user db_store.User) (*tokenPair, error) {
-	accessToken, err := s.tokenMaker.CreateToken(user.Username, user.Role, s.accessTokenDuration)
+	accessToken, err := s.tokenMaker.CreateToken(user.ID, user.Role, s.accessTokenDuration)
 	if err != nil {
 		return nil, errsvc.ErrorResponse(codes.Internal, "error to generate access token: %v", err)
 	}
 
-	refreshToken, err := s.tokenMaker.CreateToken(user.Username, user.Role, s.refreshTokenDuration)
+	refreshToken, err := s.tokenMaker.CreateToken(user.ID, user.Role, s.refreshTokenDuration)
 	if err != nil {
 		return nil, errsvc.ErrorResponse(codes.Internal, "error to generate refresh token: %v", err)
 	}
@@ -136,7 +137,7 @@ func (s *Service) Refresh(ctx context.Context, req *pb.RefreshReq) (*pb.RefreshR
 		return nil, errsvc.AuthError(fmt.Errorf("refresh token expired"))
 	}
 
-	user, err := s.store.GetUserByUsername(ctx, refreshPayload.Username)
+	user, err := s.store.GetUserById(ctx, refreshPayload.ID)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, errsvc.AuthError(fmt.Errorf("user not found"))
@@ -158,7 +159,11 @@ func (s *Service) Refresh(ctx context.Context, req *pb.RefreshReq) (*pb.RefreshR
 }
 
 func (s *Service) GetUserById(ctx context.Context, req *pb.IdReq) (*db_store.User, error) {
-	user, err := s.store.GetUserById(ctx, req.GetId())
+	id, err := uuid.Parse(req.GetId())
+	if err != nil {
+		return nil, errsvc.ErrorResponse(codes.InvalidArgument, "invalid UUID")
+	}
+	user, err := s.store.GetUserById(ctx, id)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, errsvc.AuthError(fmt.Errorf("%v", userNotFound))
@@ -177,16 +182,13 @@ func (s *Service) ListUsers(ctx context.Context) (*[]db_store.User, error) {
 }
 
 func (s *Service) UpdateUser(ctx context.Context, req *pb.UpdateUserReq) (*db_store.User, error) {
-	arg := db_store.UpdateUserParams{
-		ID:       req.GetId(),
-		Username: req.GetUsername(),
-	}
-
-	user, err := s.store.GetUserById(ctx, req.GetId())
+	id, err := uuid.Parse(req.GetId())
 	if err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, errsvc.ErrorResponse(codes.NotFound, userNotFound)
-		}
+		return nil, errsvc.ErrorResponse(codes.InvalidArgument, "invalid UUID")
+	}
+	arg := db_store.UpdateUserParams{
+		ID:       id,
+		Username: req.GetUsername(),
 	}
 	updatedUser, err := s.store.UpdateUser(ctx, arg)
 	if err != nil {
@@ -199,7 +201,7 @@ func (s *Service) UpdateUser(ctx context.Context, req *pb.UpdateUserReq) (*db_st
 		return nil, errsvc.ErrorResponse(codes.Internal, "error to update user: %v", err)
 	}
 	msg := rabbitmq.UserUpdated{
-		Username:    user.Username,
+		ID:          id,
 		NewUsername: req.GetUsername(),
 	}
 	msgBody, err := json.Marshal(msg)

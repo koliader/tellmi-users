@@ -1,5 +1,5 @@
 -- name: CreateUser :one
-INSERT INTO "Users" (
+INSERT INTO users (
   password,
   username
 ) VALUES (
@@ -7,18 +7,18 @@ INSERT INTO "Users" (
 ) RETURNING *;
 
 -- name: ListUsers :many
-SELECT * FROM "Users";
+SELECT * FROM users;
 
 -- name: GetUserByUsername :one
-SELECT * FROM "Users" 
-WHERE Username = $1;
+SELECT * FROM users 
+WHERE username = $1;
 
 -- name: GetUserById :one
-SELECT * FROM "Users" 
-WHERE ID = $1;
+SELECT * FROM users 
+WHERE id = $1;
 
 -- name: UpdateUser :one
-UPDATE "Users"
+UPDATE users
 SET username = $2
 WHERE id = $1
 RETURNING *;

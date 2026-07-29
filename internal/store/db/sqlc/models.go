@@ -6,18 +6,9 @@ package db
 
 import (
 	"time"
+
+	"github.com/google/uuid"
 )
-
-type Board struct {
-	ID     int32 `json:"id"`
-	UserID int32 `json:"user_id"`
-}
-
-type Feedback struct {
-	ID      int32 `json:"id"`
-	UserID  int32 `json:"user_id"`
-	BoardID int32 `json:"board_id"`
-}
 
 type RefreshToken struct {
 	Token     string    `json:"token"`
@@ -26,9 +17,9 @@ type RefreshToken struct {
 }
 
 type User struct {
-	ID        int64  `json:"id"`
-	Role      string `json:"role"`
-	Password  string `json:"password"`
-	Username  string `json:"username"`
-	IsBlocked bool   `json:"is_blocked"`
+	ID        uuid.UUID `json:"id"`
+	Role      string    `json:"role"`
+	Password  string    `json:"password"`
+	Username  string    `json:"username"`
+	IsBlocked bool      `json:"is_blocked"`
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/koliader/tellmi-users/internal/lib/password"
 	"github.com/koliader/tellmi-users/internal/lib/random"
 	db "github.com/koliader/tellmi-users/internal/store/db/sqlc"
@@ -23,7 +24,7 @@ func createRandomUser(t *testing.T) db.User {
 	require.NoError(t, err)
 	require.NotEmpty(t, user)
 
-	require.NotZero(t, user.ID)
+	require.NotEmpty(t, user.ID)
 	require.Equal(t, hashedPassword, user.Password)
 	require.Equal(t, false, user.IsBlocked)
 	require.Equal(t, "USER", user.Role)
@@ -63,7 +64,7 @@ func TestGetUserById(t *testing.T) {
 }
 
 func TestGetUserByIdNotFound(t *testing.T) {
-	_, err := testStore.GetUserById(context.Background(), 0)
+	_, err := testStore.GetUserById(context.Background(), uuid.New())
 	require.Error(t, err)
 }
 
@@ -117,7 +118,7 @@ func TestUpdateUser(t *testing.T) {
 
 func TestUpdateUserNotFound(t *testing.T) {
 	_, err := testStore.UpdateUser(context.Background(), db.UpdateUserParams{
-		ID:       0,
+		ID:       uuid.New(),
 		Username: random.RandomString(10),
 	})
 	require.Error(t, err)

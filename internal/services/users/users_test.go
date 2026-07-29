@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	pb "github.com/koliader/tellmi-sdk/proto/pb"
 	"github.com/koliader/tellmi-sdk/rabbitmq"
 	"github.com/koliader/tellmi-sdk/token"
-	pb "github.com/koliader/tellmi-sdk/proto/pb"
 	"github.com/koliader/tellmi-users/internal/lib/password"
 	db "github.com/koliader/tellmi-users/internal/store/db/sqlc"
 	"github.com/stretchr/testify/require"
@@ -17,14 +18,14 @@ import (
 // --- mock Store ---
 
 type mockStore struct {
-	createUserFn           func(ctx context.Context, arg db.CreateUserParams) (db.User, error)
-	getUserByUsernameFn    func(ctx context.Context, username string) (db.User, error)
-	createRefreshTokenFn   func(ctx context.Context, arg db.CreateRefreshTokenParams) (db.RefreshToken, error)
-	getRefreshTokenFn      func(ctx context.Context, token string) (db.RefreshToken, error)
-	deleteRefreshTokenFn   func(ctx context.Context, token string) error
-	getUserByIdFn          func(ctx context.Context, id int64) (db.User, error)
-	listUsersFn            func(ctx context.Context) ([]db.User, error)
-	updateUserFn           func(ctx context.Context, arg db.UpdateUserParams) (db.User, error)
+	createUserFn         func(ctx context.Context, arg db.CreateUserParams) (db.User, error)
+	getUserByUsernameFn  func(ctx context.Context, username string) (db.User, error)
+	createRefreshTokenFn func(ctx context.Context, arg db.CreateRefreshTokenParams) (db.RefreshToken, error)
+	getRefreshTokenFn    func(ctx context.Context, token string) (db.RefreshToken, error)
+	deleteRefreshTokenFn func(ctx context.Context, token string) error
+	getUserByIdFn        func(ctx context.Context, id uuid.UUID) (db.User, error)
+	listUsersFn          func(ctx context.Context) ([]db.User, error)
+	updateUserFn         func(ctx context.Context, arg db.UpdateUserParams) (db.User, error)
 }
 
 func (m *mockStore) CreateUser(ctx context.Context, arg db.CreateUserParams) (db.User, error) {
@@ -42,7 +43,7 @@ func (m *mockStore) GetRefreshToken(ctx context.Context, token string) (db.Refre
 func (m *mockStore) DeleteRefreshToken(ctx context.Context, token string) error {
 	return m.deleteRefreshTokenFn(ctx, token)
 }
-func (m *mockStore) GetUserById(ctx context.Context, id int64) (db.User, error) {
+func (m *mockStore) GetUserById(ctx context.Context, id uuid.UUID) (db.User, error) {
 	return m.getUserByIdFn(ctx, id)
 }
 func (m *mockStore) ListUsers(ctx context.Context) ([]db.User, error) {
@@ -83,7 +84,7 @@ func newTestService(t *testing.T, store db.Store, sender rabbitmq.MessageSender)
 func TestServiceRegisterSuccess(t *testing.T) {
 	store := &mockStore{
 		createUserFn: func(ctx context.Context, arg db.CreateUserParams) (db.User, error) {
-			return db.User{ID: 1, Username: arg.Username, Password: arg.Password, Role: "USER"}, nil
+			return db.User{ID: uuid.New(), Username: arg.Username, Password: arg.Password, Role: "USER"}, nil
 		},
 		createRefreshTokenFn: func(ctx context.Context, arg db.CreateRefreshTokenParams) (db.RefreshToken, error) {
 			return db.RefreshToken{Token: arg.Token, Username: arg.Username, ExpiresAt: arg.ExpiresAt}, nil
@@ -130,7 +131,7 @@ func TestServiceLoginSuccess(t *testing.T) {
 
 	store := &mockStore{
 		getUserByUsernameFn: func(ctx context.Context, username string) (db.User, error) {
-			return db.User{ID: 1, Username: "alice", Password: hashedPw, Role: "USER"}, nil
+			return db.User{ID: uuid.New(), Username: "alice", Password: hashedPw, Role: "USER"}, nil
 		},
 		createRefreshTokenFn: func(ctx context.Context, arg db.CreateRefreshTokenParams) (db.RefreshToken, error) {
 			return db.RefreshToken{Token: arg.Token, Username: arg.Username}, nil

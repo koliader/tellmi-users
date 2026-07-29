@@ -7,10 +7,12 @@ package db
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO "Users" (
+INSERT INTO users (
   password,
   username
 ) VALUES (
@@ -37,11 +39,11 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 }
 
 const getUserById = `-- name: GetUserById :one
-SELECT id, role, password, username, is_blocked FROM "Users" 
-WHERE ID = $1
+SELECT id, role, password, username, is_blocked FROM users 
+WHERE id = $1
 `
 
-func (q *Queries) GetUserById(ctx context.Context, id int64) (User, error) {
+func (q *Queries) GetUserById(ctx context.Context, id uuid.UUID) (User, error) {
 	row := q.db.QueryRow(ctx, getUserById, id)
 	var i User
 	err := row.Scan(
@@ -55,8 +57,8 @@ func (q *Queries) GetUserById(ctx context.Context, id int64) (User, error) {
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, role, password, username, is_blocked FROM "Users" 
-WHERE Username = $1
+SELECT id, role, password, username, is_blocked FROM users 
+WHERE username = $1
 `
 
 func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User, error) {
@@ -73,7 +75,7 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User,
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, role, password, username, is_blocked FROM "Users"
+SELECT id, role, password, username, is_blocked FROM users
 `
 
 func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
@@ -103,15 +105,15 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 }
 
 const updateUser = `-- name: UpdateUser :one
-UPDATE "Users"
+UPDATE users
 SET username = $2
 WHERE id = $1
 RETURNING id, role, password, username, is_blocked
 `
 
 type UpdateUserParams struct {
-	ID       int64  `json:"id"`
-	Username string `json:"username"`
+	ID       uuid.UUID `json:"id"`
+	Username string    `json:"username"`
 }
 
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
