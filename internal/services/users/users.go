@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/koliader/tellmi-sdk/errors/db"
 	"github.com/koliader/tellmi-sdk/errors/service"
@@ -16,13 +17,16 @@ import (
 	"github.com/koliader/tellmi-sdk/rabbitmq"
 	"github.com/koliader/tellmi-users/internal/lib/password"
 	db_store "github.com/koliader/tellmi-users/internal/store/db/sqlc"
-	"github.com/rs/zerolog/log"
 )
 
 const (
 	authError     = "invalid login or password"
 	userNotFound  = "user not found"
 	alreadyExists = "user with this username already exists"
+
+	aggregateTypeUser  = "user"
+	eventTypeCreated   = "userCreated"
+	eventTypeUpdated   = "userUpdated"
 )
 
 type tokenPair struct {
@@ -30,7 +34,7 @@ type tokenPair struct {
 	refreshToken string
 }
 
-func (s *Service) createTokenPair(ctx context.Context, user db_store.User) (*tokenPair, error) {
+func (s *Service) createTokenPair(ctx context.Context, q *db_store.Queries, user db_store.User) (*tokenPair, error) {
 	accessToken, err := s.tokenMaker.CreateToken(user.ID, user.Role, s.accessTokenDuration)
 	if err != nil {
 		return nil, errsvc.ErrorResponse(codes.Internal, "error to generate access token: %v", err)
@@ -41,7 +45,7 @@ func (s *Service) createTokenPair(ctx context.Context, user db_store.User) (*tok
 		return nil, errsvc.ErrorResponse(codes.Internal, "error to generate refresh token: %v", err)
 	}
 
-	_, err = s.store.CreateRefreshToken(ctx, db_store.CreateRefreshTokenParams{
+	_, err = q.CreateRefreshToken(ctx, db_store.CreateRefreshTokenParams{
 		Token:     refreshToken,
 		Username:  user.Username,
 		ExpiresAt: time.Now().Add(s.refreshTokenDuration),
@@ -63,28 +67,44 @@ func (s *Service) Register(ctx context.Context, req *pb.RegisterReq) (*pb.AuthRe
 		Password: hashPassword,
 		Username: req.GetUsername(),
 	}
-	user, err := s.store.CreateUser(ctx, arg)
+
+	var (
+		user   db_store.User
+		tokens *tokenPair
+	)
+
+	err = s.store.ExecTx(ctx, func(q *db_store.Queries) error {
+		user, err = q.CreateUser(ctx, arg)
+		if err != nil {
+			return err
+		}
+
+		tokens, err = s.createTokenPair(ctx, q, user)
+		if err != nil {
+			return err
+		}
+
+		msgBody, err := json.Marshal(rabbitmq.UserCreated{ID: user.ID, Username: user.Username})
+		if err != nil {
+			return err
+		}
+
+		_, err = q.InsertOutboxEvent(ctx, db_store.InsertOutboxEventParams{
+			AggregateType: aggregateTypeUser,
+			AggregateID:   user.ID,
+			EventType:     eventTypeCreated,
+			Payload:       msgBody,
+		})
+		return err
+	})
 	if err != nil {
 		if errdb.ErrorCode(err) == errdb.UniqueViolation {
 			return nil, errsvc.ErrorResponse(codes.AlreadyExists, alreadyExists)
 		}
-		return nil, errsvc.ErrorResponse(codes.Internal, "error to create a user: %v", err)
-	}
-
-	tokens, err := s.createTokenPair(ctx, user)
-	if err != nil {
-		return nil, err
-	}
-
-	msg := rabbitmq.UserCreated{ID: user.ID, Username: user.Username}
-	msgBody, err := json.Marshal(msg)
-	if err != nil {
-		log.Error().Err(err).Msg("error to marshal rabbitmq message")
-	} else {
-		err = s.messageSender.SendMessage(rabbitmq.UserCreatedQueue, msgBody)
-		if err != nil {
-			log.Error().Err(err).Msg("error to send rabbitmq message")
+		if _, ok := status.FromError(err); ok {
+			return nil, err
 		}
+		return nil, errsvc.ErrorResponse(codes.Internal, "error to create a user: %v", err)
 	}
 
 	return &pb.AuthRes{
@@ -107,9 +127,16 @@ func (s *Service) Login(ctx context.Context, req *pb.LoginReq) (*pb.AuthRes, err
 		return nil, errsvc.AuthError(fmt.Errorf("%v", authError))
 	}
 
-	tokens, err := s.createTokenPair(ctx, user)
+	var tokens *tokenPair
+	err = s.store.ExecTx(ctx, func(q *db_store.Queries) error {
+		tokens, err = s.createTokenPair(ctx, q, user)
+		return err
+	})
 	if err != nil {
-		return nil, err
+		if _, ok := status.FromError(err); ok {
+			return nil, err
+		}
+		return nil, errsvc.ErrorResponse(codes.Internal, "error to generate tokens: %v", err)
 	}
 
 	return &pb.AuthRes{
@@ -145,11 +172,19 @@ func (s *Service) Refresh(ctx context.Context, req *pb.RefreshReq) (*pb.RefreshR
 		return nil, errsvc.ErrorResponse(codes.Internal, "error to get user: %v", err)
 	}
 
-	s.store.DeleteRefreshToken(ctx, req.GetRefreshToken())
-
-	tokens, err := s.createTokenPair(ctx, user)
+	var tokens *tokenPair
+	err = s.store.ExecTx(ctx, func(q *db_store.Queries) error {
+		if err := q.DeleteRefreshToken(ctx, req.GetRefreshToken()); err != nil {
+			return err
+		}
+		tokens, err = s.createTokenPair(ctx, q, user)
+		return err
+	})
 	if err != nil {
-		return nil, err
+		if _, ok := status.FromError(err); ok {
+			return nil, err
+		}
+		return nil, errsvc.ErrorResponse(codes.Internal, "error to refresh tokens: %v", err)
 	}
 
 	return &pb.RefreshRes{
@@ -186,11 +221,32 @@ func (s *Service) UpdateUser(ctx context.Context, req *pb.UpdateUserReq) (*db_st
 	if err != nil {
 		return nil, errsvc.ErrorResponse(codes.InvalidArgument, "invalid UUID")
 	}
+
 	arg := db_store.UpdateUserParams{
 		ID:       id,
 		Username: req.GetUsername(),
 	}
-	updatedUser, err := s.store.UpdateUser(ctx, arg)
+
+	var updatedUser db_store.User
+	err = s.store.ExecTx(ctx, func(q *db_store.Queries) error {
+		updatedUser, err = q.UpdateUser(ctx, arg)
+		if err != nil {
+			return err
+		}
+
+		msgBody, err := json.Marshal(rabbitmq.UserUpdated{ID: id, NewUsername: req.GetUsername()})
+		if err != nil {
+			return err
+		}
+
+		_, err = q.InsertOutboxEvent(ctx, db_store.InsertOutboxEventParams{
+			AggregateType: aggregateTypeUser,
+			AggregateID:   id,
+			EventType:     eventTypeUpdated,
+			Payload:       msgBody,
+		})
+		return err
+	})
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, errsvc.ErrorResponse(codes.NotFound, userNotFound)
@@ -200,18 +256,6 @@ func (s *Service) UpdateUser(ctx context.Context, req *pb.UpdateUserReq) (*db_st
 		}
 		return nil, errsvc.ErrorResponse(codes.Internal, "error to update user: %v", err)
 	}
-	msg := rabbitmq.UserUpdated{
-		ID:          id,
-		NewUsername: req.GetUsername(),
-	}
-	msgBody, err := json.Marshal(msg)
-	if err != nil {
-		log.Error().Err(err).Msg("error to marshal rabbitmq message")
-	} else {
-		err = s.messageSender.SendMessage(rabbitmq.UserUpdatedQueue, msgBody)
-		if err != nil {
-			log.Error().Err(err).Msg("error to send rabbitmq message")
-		}
-	}
+
 	return &updatedUser, nil
 }

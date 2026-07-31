@@ -44,6 +44,13 @@ func randomUsername() string {
 
 func cleanTestUser(t *testing.T, username string) {
 	t.Helper()
+	var userID string
+	err := testPool.QueryRow(context.Background(),
+		`SELECT id::text FROM users WHERE username = $1`, username,
+	).Scan(&userID)
+	if err == nil && userID != "" {
+		testPool.Exec(context.Background(), `DELETE FROM "outbox_events" WHERE aggregate_id = $1::uuid`, userID)
+	}
 	testPool.Exec(context.Background(), `DELETE FROM "refresh_tokens" WHERE username = $1`, username)
 	testPool.Exec(context.Background(), `DELETE FROM users WHERE username = $1`, username)
 }

@@ -61,3 +61,6 @@ jobs:
 
       - name: Run gRPC integration tests
         run: go test -v -cover ./internal/app/grpc/users/...
+
+      - name: Run dispatcher tests
+        run: go test -v -cover ./internal/dispatcher/...

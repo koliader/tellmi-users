@@ -28,10 +28,6 @@ type testConfig struct {
 	RefreshTokenDuration time.Duration `mapstructure:"REFRESH_TOKEN_DURATION"`
 }
 
-type noopSender struct{}
-
-func (n *noopSender) SendMessage(queue string, body []byte) error { return nil }
-
 var (
 	testStore   db.Store
 	testPool    *pgxpool.Pool
@@ -68,7 +64,6 @@ func startTestServer() {
 		testCfg.AccessTokenDuration,
 		testCfg.RefreshTokenDuration,
 		testStore,
-		&noopSender{},
 	)
 
 	srv := NewServer(svc, mw)
@@ -117,6 +112,16 @@ func TestIntegration_Register(t *testing.T) {
 	).Scan(&tokenCount)
 	require.NoError(t, err)
 	require.Equal(t, 1, tokenCount)
+
+	// Verify outbox event stored (unpublished) with matching payload
+	var outboxCount int
+	err = testPool.QueryRow(context.Background(),
+		`SELECT COUNT(*) FROM "outbox_events"
+		 WHERE aggregate_id = $1::uuid AND event_type = 'userCreated' AND published_at IS NULL`,
+		payload.ID,
+	).Scan(&outboxCount)
+	require.NoError(t, err)
+	require.Equal(t, 1, outboxCount)
 }
 
 func TestIntegration_RegisterDuplicateUsername(t *testing.T) {

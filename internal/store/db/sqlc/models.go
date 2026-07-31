@@ -8,7 +8,18 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+type OutboxEvent struct {
+	ID            uuid.UUID          `json:"id"`
+	AggregateType string             `json:"aggregate_type"`
+	AggregateID   uuid.UUID          `json:"aggregate_id"`
+	EventType     string             `json:"event_type"`
+	Payload       []byte             `json:"payload"`
+	CreatedAt     time.Time          `json:"created_at"`
+	PublishedAt   pgtype.Timestamptz `json:"published_at"`
+}
 
 type RefreshToken struct {
 	Token     string    `json:"token"`

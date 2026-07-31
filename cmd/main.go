@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	users_server "github.com/koliader/tellmi-users/internal/app/grpc/users"
+	"github.com/koliader/tellmi-users/internal/dispatcher"
 	"github.com/koliader/tellmi-users/internal/lib/logger"
 	users_service "github.com/koliader/tellmi-users/internal/services/users"
 	db "github.com/koliader/tellmi-users/internal/store/db/sqlc"
@@ -67,10 +68,13 @@ func runGrpcServer(cfg Config, store db.Store) {
 	}
 	defer rabbitmqClient.Close()
 
-	svc, err := users_service.NewService(tokenMaker, cfg.AccessTokenDuration, cfg.RefreshTokenDuration, store, rabbitmqClient)
+	svc, err := users_service.NewService(tokenMaker, cfg.AccessTokenDuration, cfg.RefreshTokenDuration, store)
 	if err != nil {
 		log.Fatal().Err(err).Msg(fmt.Sprintf("cannot create users service: %v", err))
 	}
+
+	outboxDispatcher := dispatcher.New(store, rabbitmqClient, dispatcher.Config{})
+	outboxDispatcher.Start(context.Background())
 
 	grpcMiddleware := middleware.NewMiddleware(tokenMaker)
 
