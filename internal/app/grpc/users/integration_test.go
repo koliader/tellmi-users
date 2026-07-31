@@ -3,7 +3,6 @@ package users_server
 import (
 	"context"
 	"fmt"
-	"net"
 	"os"
 	"testing"
 	"time"
@@ -12,15 +11,13 @@ import (
 	"github.com/koliader/tellmi-sdk/config"
 	"github.com/koliader/tellmi-sdk/middleware"
 	"github.com/koliader/tellmi-sdk/proto/pb"
+	"github.com/koliader/tellmi-sdk/random"
 	"github.com/koliader/tellmi-sdk/token"
 	users_service "github.com/koliader/tellmi-users/internal/services/users"
 	db "github.com/koliader/tellmi-users/internal/store/db/sqlc"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 )
 
@@ -80,30 +77,6 @@ func startTestServer() {
 	lis.Serve(bufListener)
 }
 
-func dial(t *testing.T) pb.UsersClient {
-	t.Helper()
-	conn, err := grpc.DialContext(context.Background(), "bufnet",
-		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
-			return bufListener.Dial()
-		}),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
-	t.Cleanup(func() { conn.Close() })
-	require.NoError(t, err)
-	return pb.NewUsersClient(conn)
-}
-
-func authCtx(token string) context.Context {
-	return metadata.AppendToOutgoingContext(context.Background(),
-		"authorization", "bearer "+token,
-	)
-}
-
-func cleanTestUser(t *testing.T, username string) {
-	t.Helper()
-	testPool.Exec(context.Background(), `DELETE FROM users WHERE username = $1`, username)
-}
-
 func TestIntegration_Register(t *testing.T) {
 	client := dial(t)
 	username := fmt.Sprintf("test_%d", time.Now().UnixNano())
@@ -111,7 +84,7 @@ func TestIntegration_Register(t *testing.T) {
 
 	res, err := client.Register(context.Background(), &pb.RegisterReq{
 		Username: username,
-		Password: "secret123",
+		Password: random.RandomString(10),
 	})
 
 	require.NoError(t, err)
@@ -146,28 +119,161 @@ func TestIntegration_Register(t *testing.T) {
 	require.Equal(t, 1, tokenCount)
 }
 
-func TestIntegration_ListUsersAsUserFails(t *testing.T) {
+func TestIntegration_RegisterDuplicateUsername(t *testing.T) {
 	client := dial(t)
-	username := fmt.Sprintf("user_%d", time.Now().UnixNano())
-	defer cleanTestUser(t, username)
+	username, password, _, _ := registerTestUser(t, client)
 
 	_, err := client.Register(context.Background(), &pb.RegisterReq{
 		Username: username,
-		Password: "pass123",
+		Password: password,
 	})
-	require.NoError(t, err)
 
-	loginRes, err := client.Login(context.Background(), &pb.LoginReq{
+	requireCode(t, err, codes.AlreadyExists)
+}
+
+func TestIntegration_Login(t *testing.T) {
+	client := dial(t)
+	username, password, _, _ := registerTestUser(t, client)
+
+	accessToken, refreshToken := loginTestUser(t, client, username, password)
+	require.NotEmpty(t, accessToken)
+	require.NotEmpty(t, refreshToken)
+}
+
+func TestIntegration_LoginWrongPassword(t *testing.T) {
+	client := dial(t)
+	username, _, _, _ := registerTestUser(t, client)
+
+	_, err := client.Login(context.Background(), &pb.LoginReq{
 		Username: username,
-		Password: "pass123",
+		Password: "wrongpassword",
 	})
+
+	requireCode(t, err, codes.Unauthenticated)
+}
+
+func TestIntegration_Refresh(t *testing.T) {
+	client := dial(t)
+	_, _, _, refreshToken := registerTestUser(t, client)
+
+	res, err := client.Refresh(context.Background(), &pb.RefreshReq{
+		RefreshToken: refreshToken,
+	})
+
+	require.NoError(t, err)
+	require.NotEmpty(t, res.AccessToken)
+	require.NotEmpty(t, res.RefreshToken)
+
+	// Old refresh token is one-time use - second refresh must fail
+	_, err = client.Refresh(context.Background(), &pb.RefreshReq{
+		RefreshToken: refreshToken,
+	})
+	requireCode(t, err, codes.Unauthenticated)
+}
+
+func TestIntegration_RefreshInvalidToken(t *testing.T) {
+	client := dial(t)
+
+	_, err := client.Refresh(context.Background(), &pb.RefreshReq{
+		RefreshToken: "invalid-refresh-token",
+	})
+
+	requireCode(t, err, codes.Unauthenticated)
+}
+
+func TestIntegration_GetUserById(t *testing.T) {
+	client := dial(t)
+	username, _, _, _ := registerTestUser(t, client)
+	_, _, adminToken := createTestAdmin(t, client)
+
+	var userID string
+	err := testPool.QueryRow(context.Background(),
+		`SELECT id::text FROM users WHERE username = $1`, username,
+	).Scan(&userID)
 	require.NoError(t, err)
 
-	// USER role should NOT be able to ListUsers (requires ADMIN)
-	_, err = client.ListUsers(authCtx(loginRes.AccessToken), &pb.Empty{})
+	res, err := client.GetUserById(authCtx(adminToken), &pb.IdReq{Id: userID})
 
-	require.Error(t, err)
-	st, ok := status.FromError(err)
-	require.True(t, ok)
-	require.Equal(t, codes.Unauthenticated, st.Code())
+	require.NoError(t, err)
+	require.Equal(t, userID, res.User.Id)
+	require.Equal(t, username, res.User.Username)
+}
+
+func TestIntegration_GetUserByIdNotAdminFails(t *testing.T) {
+	client := dial(t)
+	_, _, _, accessToken := registerTestUser(t, client)
+	username, _, _, _ := registerTestUser(t, client)
+
+	var userID string
+	err := testPool.QueryRow(context.Background(),
+		`SELECT id::text FROM users WHERE username = $1`, username,
+	).Scan(&userID)
+	require.NoError(t, err)
+
+	_, err = client.GetUserById(authCtx(accessToken), &pb.IdReq{Id: userID})
+
+	requireCode(t, err, codes.Unauthenticated)
+}
+
+func TestIntegration_GetUserByIdNotFound(t *testing.T) {
+	client := dial(t)
+	_, _, adminToken := createTestAdmin(t, client)
+
+	_, err := client.GetUserById(authCtx(adminToken), &pb.IdReq{Id: "00000000-0000-0000-0000-000000000000"})
+
+	requireCode(t, err, codes.Unauthenticated)
+}
+
+func TestIntegration_ListUsers(t *testing.T) {
+	client := dial(t)
+	registerTestUser(t, client)
+	_, _, adminToken := createTestAdmin(t, client)
+
+	res, err := client.ListUsers(authCtx(adminToken), &pb.Empty{})
+
+	require.NoError(t, err)
+	require.NotEmpty(t, res.Users)
+}
+
+func TestIntegration_ListUsersAsUserFails(t *testing.T) {
+	client := dial(t)
+	_, _, _, accessToken := registerTestUser(t, client)
+
+	_, err := client.ListUsers(authCtx(accessToken), &pb.Empty{})
+
+	requireCode(t, err, codes.Unauthenticated)
+}
+
+func TestIntegration_UpdateUser(t *testing.T) {
+	client := dial(t)
+	username, _, _, _ := registerTestUser(t, client)
+	_, _, _, accessToken := registerTestUser(t, client)
+
+	var userID string
+	err := testPool.QueryRow(context.Background(),
+		`SELECT id::text FROM users WHERE username = $1`, username,
+	).Scan(&userID)
+	require.NoError(t, err)
+
+	newUsername := fmt.Sprintf("updated_%d", time.Now().UnixNano())
+	res, err := client.UpdateUser(authCtx(accessToken), &pb.UpdateUserReq{
+		Id:       userID,
+		Username: newUsername,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, userID, res.User.Id)
+	require.Equal(t, newUsername, res.User.Username)
+}
+
+func TestIntegration_UpdateUserNotFound(t *testing.T) {
+	client := dial(t)
+	_, _, _, accessToken := registerTestUser(t, client)
+
+	_, err := client.UpdateUser(authCtx(accessToken), &pb.UpdateUserReq{
+		Id:       "00000000-0000-0000-0000-000000000000",
+		Username: "nobody",
+	})
+
+	requireCode(t, err, codes.NotFound)
 }
