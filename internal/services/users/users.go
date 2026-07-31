@@ -15,6 +15,7 @@ import (
 	"github.com/koliader/tellmi-sdk/errors/service"
 	pb "github.com/koliader/tellmi-sdk/proto/pb"
 	"github.com/koliader/tellmi-sdk/rabbitmq"
+	"github.com/koliader/tellmi-sdk/token"
 	"github.com/koliader/tellmi-users/internal/lib/password"
 	db_store "github.com/koliader/tellmi-users/internal/store/db/sqlc"
 )
@@ -24,9 +25,9 @@ const (
 	userNotFound  = "user not found"
 	alreadyExists = "user with this username already exists"
 
-	aggregateTypeUser  = "user"
-	eventTypeCreated   = "userCreated"
-	eventTypeUpdated   = "userUpdated"
+	aggregateTypeUser = "user"
+	eventTypeCreated  = "userCreated"
+	eventTypeUpdated  = "userUpdated"
 )
 
 type tokenPair struct {
@@ -216,32 +217,30 @@ func (s *Service) ListUsers(ctx context.Context) (*[]db_store.User, error) {
 	return &users, nil
 }
 
-func (s *Service) UpdateUser(ctx context.Context, req *pb.UpdateUserReq) (*db_store.User, error) {
-	id, err := uuid.Parse(req.GetId())
-	if err != nil {
-		return nil, errsvc.ErrorResponse(codes.InvalidArgument, "invalid UUID")
-	}
-
+func (s *Service) UpdateUser(ctx context.Context, req *pb.UpdateUserReq, payload *token.Payload) (*db_store.User, error) {
 	arg := db_store.UpdateUserParams{
-		ID:       id,
+		ID:       payload.ID,
 		Username: req.GetUsername(),
 	}
 
 	var updatedUser db_store.User
-	err = s.store.ExecTx(ctx, func(q *db_store.Queries) error {
-		updatedUser, err = q.UpdateUser(ctx, arg)
+	err := s.store.ExecTx(ctx, func(q *db_store.Queries) error {
+		// actual update user
+		updated, err := q.UpdateUser(ctx, arg)
+		if err != nil {
+			return err
+		}
+		updatedUser = updated
+
+		msgBody, err := json.Marshal(rabbitmq.UserUpdated{ID: payload.ID, NewUsername: req.GetUsername()})
 		if err != nil {
 			return err
 		}
 
-		msgBody, err := json.Marshal(rabbitmq.UserUpdated{ID: id, NewUsername: req.GetUsername()})
-		if err != nil {
-			return err
-		}
-
+		// insert event
 		_, err = q.InsertOutboxEvent(ctx, db_store.InsertOutboxEventParams{
 			AggregateType: aggregateTypeUser,
-			AggregateID:   id,
+			AggregateID:   payload.ID,
 			EventType:     eventTypeUpdated,
 			Payload:       msgBody,
 		})

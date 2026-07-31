@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"testing"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/koliader/tellmi-sdk/proto/pb"
@@ -39,7 +38,7 @@ func authCtx(token string) context.Context {
 }
 
 func randomUsername() string {
-	return fmt.Sprintf("test_%d", time.Now().UnixNano())
+	return fmt.Sprintf("test_%s", random.RandomString(5))
 }
 
 func cleanTestUser(t *testing.T, username string) {

@@ -251,8 +251,7 @@ func TestIntegration_ListUsersAsUserFails(t *testing.T) {
 
 func TestIntegration_UpdateUser(t *testing.T) {
 	client := dial(t)
-	username, _, _, _ := registerTestUser(t, client)
-	_, _, _, accessToken := registerTestUser(t, client)
+	username, _, _, accessToken := registerTestUser(t, client)
 
 	var userID string
 	err := testPool.QueryRow(context.Background(),
@@ -262,23 +261,10 @@ func TestIntegration_UpdateUser(t *testing.T) {
 
 	newUsername := fmt.Sprintf("updated_%d", time.Now().UnixNano())
 	res, err := client.UpdateUser(authCtx(accessToken), &pb.UpdateUserReq{
-		Id:       userID,
 		Username: newUsername,
 	})
 
 	require.NoError(t, err)
 	require.Equal(t, userID, res.User.Id)
 	require.Equal(t, newUsername, res.User.Username)
-}
-
-func TestIntegration_UpdateUserNotFound(t *testing.T) {
-	client := dial(t)
-	_, _, _, accessToken := registerTestUser(t, client)
-
-	_, err := client.UpdateUser(authCtx(accessToken), &pb.UpdateUserReq{
-		Id:       "00000000-0000-0000-0000-000000000000",
-		Username: "nobody",
-	})
-
-	requireCode(t, err, codes.NotFound)
 }

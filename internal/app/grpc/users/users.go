@@ -48,12 +48,12 @@ func (s *Server) ListUsers(ctx context.Context, req *pb.Empty) (*pb.ListUserRes,
 }
 
 func (s *Server) UpdateUser(ctx context.Context, req *pb.UpdateUserReq) (*pb.UserRes, error) {
-	_, err := s.middleware.AuthorizeUser(ctx)
+	payload, err := s.middleware.AuthorizeUser(ctx)
 	if err != nil {
 		return nil, errsvc.ErrorResponse(codes.Unauthenticated, "error to authorize user: %v", err)
 	}
 
-	user, err := s.users_service.UpdateUser(ctx, req)
+	user, err := s.users_service.UpdateUser(ctx, req, payload)
 	if err != nil {
 		return nil, err
 	}
