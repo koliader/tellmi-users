@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/koliader/tellmi-sdk/random"
 	"github.com/koliader/tellmi-users/internal/lib/password"
-	"github.com/koliader/tellmi-users/internal/lib/random"
 	db "github.com/koliader/tellmi-users/internal/store/db/sqlc"
 	"github.com/stretchr/testify/require"
 )

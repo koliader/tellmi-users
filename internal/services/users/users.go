@@ -76,7 +76,7 @@ func (s *Service) Register(ctx context.Context, req *pb.RegisterReq) (*pb.AuthRe
 		return nil, err
 	}
 
-	msg := rabbitmq.UserCreated{Username: user.Username}
+	msg := rabbitmq.UserCreated{ID: user.ID, Username: user.Username}
 	msgBody, err := json.Marshal(msg)
 	if err != nil {
 		log.Error().Err(err).Msg("error to marshal rabbitmq message")

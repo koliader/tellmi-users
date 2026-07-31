@@ -9,7 +9,7 @@ import (
 )
 
 type Service struct {
-	tokenMaker          token.Maker
+	tokenMaker           token.Maker
 	accessTokenDuration  time.Duration
 	refreshTokenDuration time.Duration
 	store               db.Store

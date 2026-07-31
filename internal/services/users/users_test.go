@@ -158,7 +158,7 @@ func TestServiceLoginWrongPassword(t *testing.T) {
 
 	store := &mockStore{
 		getUserByUsernameFn: func(ctx context.Context, username string) (db.User, error) {
-			return db.User{ID: 1, Username: "alice", Password: hashedPw, Role: "USER"}, nil
+			return db.User{ID: uuid.New(), Username: "alice", Password: hashedPw, Role: "USER"}, nil
 		},
 	}
 	sender := &mockSender{

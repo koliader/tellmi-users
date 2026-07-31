@@ -1,9 +1,9 @@
 package password
 
 import (
+	"github.com/koliader/tellmi-sdk/random"
 	"testing"
 
-	"github.com/koliader/tellmi-users/internal/lib/random"
 	"github.com/stretchr/testify/require"
 )
 

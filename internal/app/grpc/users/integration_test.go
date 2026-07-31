@@ -9,12 +9,12 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	users_service "github.com/koliader/tellmi-users/internal/services/users"
-	db "github.com/koliader/tellmi-users/internal/store/db/sqlc"
 	"github.com/koliader/tellmi-sdk/config"
 	"github.com/koliader/tellmi-sdk/middleware"
 	"github.com/koliader/tellmi-sdk/proto/pb"
 	"github.com/koliader/tellmi-sdk/token"
+	users_service "github.com/koliader/tellmi-users/internal/services/users"
+	db "github.com/koliader/tellmi-users/internal/store/db/sqlc"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -101,7 +101,7 @@ func authCtx(token string) context.Context {
 
 func cleanTestUser(t *testing.T, username string) {
 	t.Helper()
-	testPool.Exec(context.Background(), `DELETE FROM "Users" WHERE username = $1`, username)
+	testPool.Exec(context.Background(), `DELETE FROM users WHERE username = $1`, username)
 }
 
 func TestIntegration_Register(t *testing.T) {
@@ -123,16 +123,19 @@ func TestIntegration_Register(t *testing.T) {
 	require.NoError(t, err)
 	payload, err := maker.VerifyToken(res.AccessToken)
 	require.NoError(t, err)
-	require.Equal(t, username, payload.Username)
 	require.Equal(t, "USER", payload.Role)
 
-	// Verify user actually exists in DB
-	var count int
+	// Verify user actually exists in DB with matching UUID
+	var (
+		dbID       string
+		dbUsername string
+	)
 	err = testPool.QueryRow(context.Background(),
-		`SELECT COUNT(*) FROM "Users" WHERE username = $1`, username,
-	).Scan(&count)
+		`SELECT id::text, username FROM users WHERE username = $1`, username,
+	).Scan(&dbID, &dbUsername)
 	require.NoError(t, err)
-	require.Equal(t, 1, count)
+	require.Equal(t, dbID, payload.ID.String())
+	require.Equal(t, username, dbUsername)
 
 	// Verify refresh token stored in DB
 	var tokenCount int
