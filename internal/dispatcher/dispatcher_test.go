@@ -22,7 +22,7 @@ type recordingSender struct {
 	err    error
 }
 
-func (s *recordingSender) SendMessage(queue string, body []byte) error {
+func (s *recordingSender) SendMessage(_ context.Context, queue string, body []byte) error {
 	if s.err != nil {
 		return s.err
 	}

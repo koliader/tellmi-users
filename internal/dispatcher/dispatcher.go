@@ -84,10 +84,12 @@ func (d *Dispatcher) dispatchOnce(ctx context.Context) {
 			continue
 		}
 
-		if err := d.sender.SendMessage(queue, event.Payload); err != nil {
+		if err := d.sender.SendMessage(ctx, queue, event.Payload); err != nil {
 			log.Error().Err(err).Str("event_id", event.ID.String()).Str("queue", queue).
 				Msg("outbox dispatcher: failed to publish event")
-			continue
+			// broker is unavailable or rejected the batch; stop rather than racing
+			// confirms for the remaining events
+			break
 		}
 
 		if err := d.store.MarkOutboxEventPublished(ctx, event.ID); err != nil {

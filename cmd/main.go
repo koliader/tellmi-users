@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -14,6 +16,7 @@ import (
 	users_service "github.com/koliader/tellmi-users/internal/services/users"
 	db "github.com/koliader/tellmi-users/internal/store/db/sqlc"
 	"github.com/koliader/tellmi-sdk/config"
+	"github.com/koliader/tellmi-sdk/health"
 	"github.com/koliader/tellmi-sdk/middleware"
 	"github.com/koliader/tellmi-sdk/rabbitmq"
 	"github.com/koliader/tellmi-sdk/token"
@@ -32,6 +35,7 @@ type Config struct {
 	RefreshTokenDuration time.Duration `mapstructure:"REFRESH_TOKEN_DURATION"`
 	Environment          string        `mapstructure:"ENVIRONMENT"`
 	RbmUrl               string        `mapstructure:"RBM_URL"`
+	HealthAddress        string        `mapstructure:"HEALTH_ADDRESS"`
 }
 
 func main() {
@@ -45,18 +49,35 @@ func main() {
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 	}
 
-	connPool, err := pgxpool.New(context.Background(), cfg.DBSource)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	connPool, err := pgxpool.New(ctx, cfg.DBSource)
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot connect to db")
 	}
-
 	defer connPool.Close()
+
 	store := db.NewStore(connPool)
 
-	runGrpcServer(cfg, store)
+	if cfg.HealthAddress != "" {
+		healthServer := health.NewServer(cfg.HealthAddress,
+			func(ctx context.Context) error {
+				return connPool.Ping(ctx)
+			},
+		)
+		go func() {
+			log.Info().Msgf("start health server at %s", cfg.HealthAddress)
+			if err := healthServer.Start(); err != nil {
+				log.Error().Err(err).Msg("health server stopped")
+			}
+		}()
+	}
+
+	runGrpcServer(ctx, cfg, store)
 }
 
-func runGrpcServer(cfg Config, store db.Store) {
+func runGrpcServer(ctx context.Context, cfg Config, store db.Store) {
 	tokenMaker, err := token.NewJWTMaker(cfg.TokenKey)
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot create token maker")
@@ -74,7 +95,7 @@ func runGrpcServer(cfg Config, store db.Store) {
 	}
 
 	outboxDispatcher := dispatcher.New(store, rabbitmqClient, dispatcher.Config{})
-	outboxDispatcher.Start(context.Background())
+	outboxDispatcher.Start(ctx)
 
 	grpcMiddleware := middleware.NewMiddleware(tokenMaker)
 
@@ -89,9 +110,15 @@ func runGrpcServer(cfg Config, store db.Store) {
 	pb.RegisterUsersServer(grpcServer, usersServer)
 	reflection.Register(grpcServer)
 
+	go func() {
+		<-ctx.Done()
+		grpcServer.GracefulStop()
+	}()
+
 	log.Info().Msgf("start gRPC server at %s", listener.Addr().String())
 	err = grpcServer.Serve(listener)
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot start gRPC server")
 	}
 }
+
