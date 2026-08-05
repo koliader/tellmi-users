@@ -13,6 +13,7 @@ import (
 
 	"github.com/koliader/tellmi-sdk/errors/db"
 	"github.com/koliader/tellmi-sdk/errors/service"
+	"github.com/koliader/tellmi-sdk/otel"
 	pb "github.com/koliader/tellmi-sdk/proto/pb"
 	"github.com/koliader/tellmi-sdk/rabbitmq"
 	"github.com/koliader/tellmi-sdk/token"
@@ -33,6 +34,10 @@ const (
 type tokenPair struct {
 	accessToken  string
 	refreshToken string
+}
+
+func stringPtr(s string) *string {
+	return &s
 }
 
 func (s *Service) createTokenPair(ctx context.Context, q *db_store.Queries, user db_store.User) (*tokenPair, error) {
@@ -95,6 +100,7 @@ func (s *Service) Register(ctx context.Context, req *pb.RegisterReq) (*pb.AuthRe
 			AggregateID:   user.ID,
 			EventType:     eventTypeCreated,
 			Payload:       msgBody,
+			TraceContext:  stringPtr(otel.InjectTraceContext(ctx)),
 		})
 		return err
 	})
@@ -243,6 +249,7 @@ func (s *Service) UpdateUser(ctx context.Context, req *pb.UpdateUserReq, payload
 			AggregateID:   payload.ID,
 			EventType:     eventTypeUpdated,
 			Payload:       msgBody,
+			TraceContext:  stringPtr(otel.InjectTraceContext(ctx)),
 		})
 		return err
 	})

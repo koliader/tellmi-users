@@ -3,9 +3,10 @@ INSERT INTO outbox_events (
   aggregate_type,
   aggregate_id,
   event_type,
-  payload
+  payload,
+  trace_context
 ) VALUES (
-  $1, $2, $3, $4
+  $1, $2, $3, $4, $5
 ) RETURNING *;
 
 -- name: ListUnpublishedOutboxEvents :many
@@ -15,6 +16,11 @@ WHERE published_at IS NULL
 ORDER BY created_at
 LIMIT $1
 FOR UPDATE SKIP LOCKED;
+
+-- name: CountUnpublishedOutboxEvents :one
+SELECT count(*)
+FROM outbox_events
+WHERE published_at IS NULL;
 
 -- name: MarkOutboxEventPublished :exec
 UPDATE outbox_events

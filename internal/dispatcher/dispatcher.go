@@ -5,9 +5,13 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	tellmiotel "github.com/koliader/tellmi-sdk/otel"
 	"github.com/koliader/tellmi-sdk/rabbitmq"
 	db "github.com/koliader/tellmi-users/internal/store/db/sqlc"
 	"github.com/rs/zerolog/log"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/noop"
 )
 
 const (
@@ -26,12 +30,17 @@ type Config struct {
 	Retention       time.Duration
 	BackoffInitial  time.Duration
 	BackoffMax      time.Duration
+	// MeterProvider supplies the metric meter for the outbox gauge. When nil,
+	// a noop meter is used so the dispatcher stays testable without OTel.
+	MeterProvider metric.MeterProvider
 }
 
 type Dispatcher struct {
-	store  db.Store
-	sender rabbitmq.MessageSender
-	cfg    Config
+	store       db.Store
+	sender      rabbitmq.MessageSender
+	cfg         Config
+	meter       metric.Meter
+	outboxGauge metric.Int64ObservableGauge
 }
 
 func New(store db.Store, sender rabbitmq.MessageSender, cfg Config) *Dispatcher {
@@ -53,13 +62,35 @@ func New(store db.Store, sender rabbitmq.MessageSender, cfg Config) *Dispatcher 
 	if cfg.BackoffMax <= 0 {
 		cfg.BackoffMax = DefaultBackoffMax
 	}
-	return &Dispatcher{store: store, sender: sender, cfg: cfg}
+	meter := noop.NewMeterProvider().Meter("tellmi/outbox")
+	if cfg.MeterProvider != nil {
+		meter = cfg.MeterProvider.Meter("tellmi/outbox")
+	}
+	gauge, err := meter.Int64ObservableGauge(
+		"outbox_events_unpublished",
+		metric.WithDescription("Number of outbox events not yet published"),
+	)
+	if err != nil {
+		log.Warn().Err(err).Msg("outbox dispatcher: cannot create outbox gauge")
+		gauge, _ = noop.NewMeterProvider().Meter("tellmi/outbox").Int64ObservableGauge("outbox_events_unpublished")
+	}
+	return &Dispatcher{store: store, sender: sender, cfg: cfg, meter: meter, outboxGauge: gauge}
 }
 
 func (d *Dispatcher) Start(ctx context.Context) {
 	go d.dispatchLoop(ctx)
 	if d.cfg.Retention > 0 {
 		go d.cleanupLoop(ctx)
+	}
+	if _, err := d.meter.RegisterCallback(func(ctx context.Context, o metric.Observer) error {
+		count, err := d.store.CountUnpublishedOutboxEvents(ctx)
+		if err != nil {
+			return err
+		}
+		o.ObserveInt64(d.outboxGauge, count)
+		return nil
+	}, d.outboxGauge); err != nil {
+		log.Warn().Err(err).Msg("outbox dispatcher: cannot register outbox gauge callback")
 	}
 	log.Info().Msg("outbox dispatcher started")
 }
@@ -134,25 +165,32 @@ func (d *Dispatcher) dispatchOnce(ctx context.Context) (int, bool) {
 				continue
 			}
 
-			if err := d.sender.SendMessage(ctx, queue, event.Payload); err != nil {
+			// resume the trace that created this event (stored as traceparent at
+			// insert time) so the async publish continues the original span tree
+			msgCtx := tellmiotel.ExtractTraceContext(ctx, stringOrEmpty(event.TraceContext))
+			_, span := otel.Tracer("tellmi/outbox").Start(msgCtx, "outbox.publish "+event.EventType)
+			sendErr := d.sender.SendMessage(msgCtx, queue, event.Payload)
+			span.End()
+
+			if sendErr != nil {
 				hadFailure = true
-				log.Error().Err(err).Str("event_id", event.ID.String()).Str("queue", queue).
+				log.Error().Ctx(msgCtx).Err(sendErr).Str("event_id", event.ID.String()).Str("queue", queue).
 					Msg("outbox dispatcher: failed to publish event, will retry")
 				continue
 			}
 			published++
 
-			log.Info().Str("event_id", event.ID.String()).Str("queue", queue).
+			log.Info().Ctx(msgCtx).Str("event_id", event.ID.String()).Str("queue", queue).
 				Msg("outbox dispatcher: published event")
 
 			if err := q.MarkOutboxEventPublished(ctx, event.ID); err != nil {
 				hadFailure = true
-				log.Error().Err(err).Str("event_id", event.ID.String()).
+				log.Error().Ctx(msgCtx).Err(err).Str("event_id", event.ID.String()).
 					Msg("outbox dispatcher: failed to mark event as published")
 				continue
 			}
 
-			log.Info().Str("event_id", event.ID.String()).Str("queue", queue).
+			log.Info().Ctx(msgCtx).Str("event_id", event.ID.String()).Str("queue", queue).
 				Msg("outbox dispatcher: marked event as published")
 		}
 		return nil
@@ -194,4 +232,11 @@ func queueForEvent(eventType string) string {
 	default:
 		return ""
 	}
+}
+
+func stringOrEmpty(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }

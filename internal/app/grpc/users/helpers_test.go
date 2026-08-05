@@ -9,8 +9,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/koliader/tellmi-sdk/proto/pb"
 	"github.com/koliader/tellmi-sdk/random"
+	passwordlib "github.com/koliader/tellmi-users/internal/lib/password"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -88,7 +88,7 @@ func createTestAdmin(t *testing.T, client pb.UsersClient) (username, password, a
 	username = randomUsername()
 	password = random.RandomString(10)
 
-	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hashed, err := passwordlib.HashPassword(password)
 	require.NoError(t, err)
 
 	pool, err := pgxpool.New(context.Background(), testCfg.DBSource)
@@ -97,7 +97,7 @@ func createTestAdmin(t *testing.T, client pb.UsersClient) (username, password, a
 
 	_, err = pool.Exec(context.Background(),
 		`INSERT INTO users (role, password, username) VALUES ($1, $2, $3)`,
-		"ADMIN", string(hashed), username,
+		"ADMIN", hashed, username,
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() { cleanTestUser(t, username) })

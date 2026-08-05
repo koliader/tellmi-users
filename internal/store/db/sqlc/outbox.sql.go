@@ -12,6 +12,19 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countUnpublishedOutboxEvents = `-- name: CountUnpublishedOutboxEvents :one
+SELECT count(*)
+FROM outbox_events
+WHERE published_at IS NULL
+`
+
+func (q *Queries) CountUnpublishedOutboxEvents(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countUnpublishedOutboxEvents)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deletePublishedOutboxEvents = `-- name: DeletePublishedOutboxEvents :exec
 DELETE FROM outbox_events
 WHERE published_at IS NOT NULL
@@ -24,7 +37,7 @@ func (q *Queries) DeletePublishedOutboxEvents(ctx context.Context, dollar_1 pgty
 }
 
 const getOutboxEventById = `-- name: GetOutboxEventById :one
-SELECT id, aggregate_type, aggregate_id, event_type, payload, created_at, published_at
+SELECT id, aggregate_type, aggregate_id, event_type, payload, created_at, published_at, trace_context
 FROM outbox_events
 WHERE id = $1
 `
@@ -40,6 +53,7 @@ func (q *Queries) GetOutboxEventById(ctx context.Context, id uuid.UUID) (OutboxE
 		&i.Payload,
 		&i.CreatedAt,
 		&i.PublishedAt,
+		&i.TraceContext,
 	)
 	return i, err
 }
@@ -49,10 +63,11 @@ INSERT INTO outbox_events (
   aggregate_type,
   aggregate_id,
   event_type,
-  payload
+  payload,
+  trace_context
 ) VALUES (
-  $1, $2, $3, $4
-) RETURNING id, aggregate_type, aggregate_id, event_type, payload, created_at, published_at
+  $1, $2, $3, $4, $5
+) RETURNING id, aggregate_type, aggregate_id, event_type, payload, created_at, published_at, trace_context
 `
 
 type InsertOutboxEventParams struct {
@@ -60,6 +75,7 @@ type InsertOutboxEventParams struct {
 	AggregateID   uuid.UUID `json:"aggregate_id"`
 	EventType     string    `json:"event_type"`
 	Payload       []byte    `json:"payload"`
+	TraceContext  *string   `json:"trace_context"`
 }
 
 func (q *Queries) InsertOutboxEvent(ctx context.Context, arg InsertOutboxEventParams) (OutboxEvent, error) {
@@ -68,6 +84,7 @@ func (q *Queries) InsertOutboxEvent(ctx context.Context, arg InsertOutboxEventPa
 		arg.AggregateID,
 		arg.EventType,
 		arg.Payload,
+		arg.TraceContext,
 	)
 	var i OutboxEvent
 	err := row.Scan(
@@ -78,12 +95,13 @@ func (q *Queries) InsertOutboxEvent(ctx context.Context, arg InsertOutboxEventPa
 		&i.Payload,
 		&i.CreatedAt,
 		&i.PublishedAt,
+		&i.TraceContext,
 	)
 	return i, err
 }
 
 const listUnpublishedOutboxEvents = `-- name: ListUnpublishedOutboxEvents :many
-SELECT id, aggregate_type, aggregate_id, event_type, payload, created_at, published_at
+SELECT id, aggregate_type, aggregate_id, event_type, payload, created_at, published_at, trace_context
 FROM outbox_events
 WHERE published_at IS NULL
 ORDER BY created_at
@@ -108,6 +126,7 @@ func (q *Queries) ListUnpublishedOutboxEvents(ctx context.Context, limit int32) 
 			&i.Payload,
 			&i.CreatedAt,
 			&i.PublishedAt,
+			&i.TraceContext,
 		); err != nil {
 			return nil, err
 		}

@@ -9,7 +9,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/exaring/otelpgx"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+
 	users_server "github.com/koliader/tellmi-users/internal/app/grpc/users"
 	"github.com/koliader/tellmi-users/internal/dispatcher"
 	"github.com/koliader/tellmi-users/internal/lib/logger"
@@ -18,11 +21,13 @@ import (
 	"github.com/koliader/tellmi-sdk/config"
 	"github.com/koliader/tellmi-sdk/health"
 	"github.com/koliader/tellmi-sdk/middleware"
+	"github.com/koliader/tellmi-sdk/otel"
 	"github.com/koliader/tellmi-sdk/rabbitmq"
 	"github.com/koliader/tellmi-sdk/token"
 	pb "github.com/koliader/tellmi-sdk/proto/pb"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"go.opentelemetry.io/otel/metric"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -46,13 +51,29 @@ func main() {
 	}
 
 	if cfg.Environment == "dev" || cfg.Environment == "docker" {
-		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr}).Hook(otel.NewZerologHook())
+		zerolog.DefaultContextLogger = &log.Logger
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	connPool, err := pgxpool.New(ctx, cfg.DBSource)
+	otelSDK, err := otel.Init(ctx, otel.Config{ServiceName: "users-service"})
+	if err != nil {
+		log.Fatal().Err(err).Msg("cannot init otel")
+	}
+	defer func() {
+		if err := otelSDK.Shutdown(context.Background()); err != nil {
+			log.Error().Err(err).Msg("otel shutdown")
+		}
+	}()
+
+	pgxConfig, err := pgxpool.ParseConfig(cfg.DBSource)
+	if err != nil {
+		log.Fatal().Err(err).Msg("cannot parse db config")
+	}
+	pgxConfig.ConnConfig.Tracer = otelpgx.NewTracer()
+	connPool, err := pgxpool.NewWithConfig(ctx, pgxConfig)
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot connect to db")
 	}
@@ -65,7 +86,7 @@ func main() {
 			func(ctx context.Context) error {
 				return connPool.Ping(ctx)
 			},
-		)
+		).WithHandler("/metrics", otel.MetricsHandler())
 		go func() {
 			log.Info().Msgf("start health server at %s", cfg.HealthAddress)
 			if err := healthServer.Start(); err != nil {
@@ -74,10 +95,10 @@ func main() {
 		}()
 	}
 
-	runGrpcServer(ctx, cfg, store)
+	runGrpcServer(ctx, cfg, store, otelSDK.MeterProvider)
 }
 
-func runGrpcServer(ctx context.Context, cfg Config, store db.Store) {
+func runGrpcServer(ctx context.Context, cfg Config, store db.Store, meterProvider metric.MeterProvider) {
 	tokenMaker, err := token.NewJWTMaker(cfg.TokenKey)
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot create token maker")
@@ -94,7 +115,9 @@ func runGrpcServer(ctx context.Context, cfg Config, store db.Store) {
 		log.Fatal().Err(err).Msg(fmt.Sprintf("cannot create users service: %v", err))
 	}
 
-	outboxDispatcher := dispatcher.New(store, rabbitmqClient, dispatcher.Config{})
+	outboxDispatcher := dispatcher.New(store, rabbitmqClient, dispatcher.Config{
+		MeterProvider: meterProvider,
+	})
 	outboxDispatcher.Start(ctx)
 
 	grpcMiddleware := middleware.NewMiddleware(tokenMaker)
@@ -106,7 +129,10 @@ func runGrpcServer(ctx context.Context, cfg Config, store db.Store) {
 	}
 
 	grpcLogger := grpc.UnaryInterceptor(logger.GrpcLogger)
-	grpcServer := grpc.NewServer(grpcLogger)
+	grpcServer := grpc.NewServer(
+		grpcLogger,
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+	)
 	pb.RegisterUsersServer(grpcServer, usersServer)
 	reflection.Register(grpcServer)
 

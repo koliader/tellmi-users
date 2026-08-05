@@ -19,7 +19,9 @@ protoc:
 	--grpc-gateway_out ./internal/pb --grpc-gateway_opt paths=source_relative \
 	proto/*.proto
 test:
-	go test -v -cover ./...
+	# integration tests share the dev DB (outbox_events); -p 1 serializes
+	# packages so they don't interfere with each other
+	go test -p 1 -v -cover ./...
 evans:
 	 evans --host localhost --port 8081 -r repl
 dev:

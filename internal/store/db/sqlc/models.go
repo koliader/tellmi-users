@@ -19,6 +19,7 @@ type OutboxEvent struct {
 	Payload       []byte             `json:"payload"`
 	CreatedAt     time.Time          `json:"created_at"`
 	PublishedAt   pgtype.Timestamptz `json:"published_at"`
+	TraceContext  *string            `json:"trace_context"`
 }
 
 type RefreshToken struct {
