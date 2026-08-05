@@ -102,7 +102,9 @@ func TestDispatchPublishesAndMarksPublished(t *testing.T) {
 	sender := &recordingSender{}
 	d := New(testStore, sender, Config{PollInterval: time.Hour})
 
-	require.True(t, d.dispatchOnce(context.Background()))
+	published, hadFailure := d.dispatchOnce(context.Background())
+	require.False(t, hadFailure)
+	require.Equal(t, 1, published)
 
 	require.Len(t, sender.queues, 1)
 	require.Equal(t, rabbitmq.UserCreatedQueue, sender.queues[0])
@@ -127,7 +129,9 @@ func TestDispatchKeepsEventOnPublishFailure(t *testing.T) {
 	sender := &recordingSender{err: errors.New("rabbitmq down")}
 	d := New(testStore, sender, Config{PollInterval: time.Hour})
 
-	require.False(t, d.dispatchOnce(context.Background()))
+	published, hadFailure := d.dispatchOnce(context.Background())
+	require.True(t, hadFailure)
+	require.Equal(t, 0, published)
 
 	events, err := testStore.ListUnpublishedOutboxEvents(context.Background(), 10)
 	require.NoError(t, err)
@@ -152,7 +156,9 @@ func TestDispatchContinuesBatchAfterPoisonRow(t *testing.T) {
 	sender := &recordingSender{errForBody: map[string]error{poison: errors.New("poison")}}
 	d := New(testStore, sender, Config{PollInterval: time.Hour})
 
-	require.False(t, d.dispatchOnce(context.Background()))
+	published, hadFailure := d.dispatchOnce(context.Background())
+	require.True(t, hadFailure)
+	require.Equal(t, 1, published, "healthy event in batch should still publish")
 
 	events, err := testStore.ListUnpublishedOutboxEvents(context.Background(), 10)
 	require.NoError(t, err)

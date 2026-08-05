@@ -74,15 +74,19 @@ func (d *Dispatcher) dispatchLoop(ctx context.Context) {
 		default:
 		}
 
-		if !d.dispatchOnce(ctx) {
+		published, hadFailure := d.dispatchOnce(ctx)
+		if hadFailure {
 			// batch had a failure: back off exponentially before polling again
-			log.Info().Dur("backoff", backoff).Msg("outbox dispatcher backing off")
+			log.Warn().Int("published", published).Dur("backoff", backoff).
+				Msg("outbox dispatcher: publish failed, backing off")
 			select {
 			case <-ctx.Done():
 				log.Info().Msg("outbox dispatcher stopped")
 				return
 			case <-time.After(backoff):
 			}
+			log.Info().Int("published", published).Dur("backoff", backoff).
+				Msg("outbox dispatcher: backoff elapsed, retrying dispatch")
 			if backoff < d.cfg.BackoffMax {
 				backoff *= 2
 				if backoff > d.cfg.BackoffMax {
@@ -106,15 +110,20 @@ func (d *Dispatcher) dispatchLoop(ctx context.Context) {
 // inside a single transaction, so concurrent dispatchers never claim the same
 // row. Each event is published and then marked published within the same tx.
 // A single failing event (poison row) is left unpublished while the rest of the
-// batch continues; the tx still commits the successful marks. Returns false if
-// the batch had any failure so the loop can back off.
-func (d *Dispatcher) dispatchOnce(ctx context.Context) bool {
+// batch continues; the tx still commits the successful marks. Returns the number
+// of events published and whether the batch had any failure so the loop can back off.
+func (d *Dispatcher) dispatchOnce(ctx context.Context) (int, bool) {
 	hadFailure := false
+	published := 0
 
 	err := d.store.ExecTx(ctx, func(q *db.Queries) error {
 		events, err := q.ListUnpublishedOutboxEvents(ctx, d.cfg.BatchSize)
 		if err != nil {
 			return err
+		}
+
+		if len(events) > 0 {
+			log.Info().Int("found", len(events)).Msg("outbox dispatcher: found unpublished events")
 		}
 
 		for _, event := range events {
@@ -131,21 +140,29 @@ func (d *Dispatcher) dispatchOnce(ctx context.Context) bool {
 					Msg("outbox dispatcher: failed to publish event, will retry")
 				continue
 			}
+			published++
+
+			log.Info().Str("event_id", event.ID.String()).Str("queue", queue).
+				Msg("outbox dispatcher: published event")
 
 			if err := q.MarkOutboxEventPublished(ctx, event.ID); err != nil {
 				hadFailure = true
 				log.Error().Err(err).Str("event_id", event.ID.String()).
 					Msg("outbox dispatcher: failed to mark event as published")
+				continue
 			}
+
+			log.Info().Str("event_id", event.ID.String()).Str("queue", queue).
+				Msg("outbox dispatcher: marked event as published")
 		}
 		return nil
 	})
 	if err != nil {
 		log.Error().Err(err).Msg("outbox dispatcher: failed to claim unpublished events")
-		return false
+		return 0, false
 	}
 
-	return !hadFailure
+	return published, hadFailure
 }
 
 func (d *Dispatcher) cleanupLoop(ctx context.Context) {

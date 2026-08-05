@@ -4,9 +4,9 @@ createdb:
 	 docker exec -it pg16 createdb --username=root --owner=root tellmi_users
 dropdb:
 	 docker exec -it pg16 dropdb tellmi_users
-migrateup:
+mu:
 	migrate -path internal/store/db/migration -database "postgresql://root:secret@127.0.0.1:5432/tellmi_users?sslmode=disable" -verbose up
-migratedown:
+md:
 	migrate -path internal/store/db/migration -database "postgresql://root:secret@127.0.0.1:5432/tellmi_users?sslmode=disable" -verbose down
 sqlc:
 	sqlc generate
