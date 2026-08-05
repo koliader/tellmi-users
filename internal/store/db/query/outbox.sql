@@ -13,11 +13,17 @@ SELECT *
 FROM outbox_events
 WHERE published_at IS NULL
 ORDER BY created_at
-LIMIT $1;
+LIMIT $1
+FOR UPDATE SKIP LOCKED;
 
 -- name: MarkOutboxEventPublished :exec
 UPDATE outbox_events
 SET published_at = now()
+WHERE id = $1;
+
+-- name: GetOutboxEventById :one
+SELECT *
+FROM outbox_events
 WHERE id = $1;
 
 -- name: DeletePublishedOutboxEvents :exec

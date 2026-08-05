@@ -23,6 +23,27 @@ func (q *Queries) DeletePublishedOutboxEvents(ctx context.Context, dollar_1 pgty
 	return err
 }
 
+const getOutboxEventById = `-- name: GetOutboxEventById :one
+SELECT id, aggregate_type, aggregate_id, event_type, payload, created_at, published_at
+FROM outbox_events
+WHERE id = $1
+`
+
+func (q *Queries) GetOutboxEventById(ctx context.Context, id uuid.UUID) (OutboxEvent, error) {
+	row := q.db.QueryRow(ctx, getOutboxEventById, id)
+	var i OutboxEvent
+	err := row.Scan(
+		&i.ID,
+		&i.AggregateType,
+		&i.AggregateID,
+		&i.EventType,
+		&i.Payload,
+		&i.CreatedAt,
+		&i.PublishedAt,
+	)
+	return i, err
+}
+
 const insertOutboxEvent = `-- name: InsertOutboxEvent :one
 INSERT INTO outbox_events (
   aggregate_type,
@@ -67,6 +88,7 @@ FROM outbox_events
 WHERE published_at IS NULL
 ORDER BY created_at
 LIMIT $1
+FOR UPDATE SKIP LOCKED
 `
 
 func (q *Queries) ListUnpublishedOutboxEvents(ctx context.Context, limit int32) ([]OutboxEvent, error) {

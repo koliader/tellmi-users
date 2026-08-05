@@ -22,6 +22,7 @@ type Store interface {
 	DeleteRefreshTokensByUsername(ctx context.Context, username string) error
 
 	InsertOutboxEvent(ctx context.Context, arg InsertOutboxEventParams) (OutboxEvent, error)
+	GetOutboxEventById(ctx context.Context, id uuid.UUID) (OutboxEvent, error)
 	ListUnpublishedOutboxEvents(ctx context.Context, limit int32) ([]OutboxEvent, error)
 	MarkOutboxEventPublished(ctx context.Context, id uuid.UUID) error
 	DeletePublishedOutboxEvents(ctx context.Context, interval pgtype.Interval) error

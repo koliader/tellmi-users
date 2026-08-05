@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,15 +18,29 @@ import (
 )
 
 type recordingSender struct {
-	queues []string
-	bodies [][]byte
-	err    error
+	mu                sync.Mutex
+	queues            []string
+	bodies            [][]byte
+	err               error
+	errForBody        map[string]error
+	firstPublishDelay time.Duration
+	sent              int
 }
 
 func (s *recordingSender) SendMessage(_ context.Context, queue string, body []byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if s.err != nil {
 		return s.err
 	}
+	if err := s.errForBody[string(body)]; err != nil {
+		return err
+	}
+	if s.firstPublishDelay > 0 && s.sent == 0 {
+		time.Sleep(s.firstPublishDelay)
+	}
+	s.sent++
 	s.queues = append(s.queues, queue)
 	s.bodies = append(s.bodies, body)
 	return nil
@@ -87,7 +102,7 @@ func TestDispatchPublishesAndMarksPublished(t *testing.T) {
 	sender := &recordingSender{}
 	d := New(testStore, sender, Config{PollInterval: time.Hour})
 
-	d.dispatchOnce(context.Background())
+	require.True(t, d.dispatchOnce(context.Background()))
 
 	require.Len(t, sender.queues, 1)
 	require.Equal(t, rabbitmq.UserCreatedQueue, sender.queues[0])
@@ -112,12 +127,81 @@ func TestDispatchKeepsEventOnPublishFailure(t *testing.T) {
 	sender := &recordingSender{err: errors.New("rabbitmq down")}
 	d := New(testStore, sender, Config{PollInterval: time.Hour})
 
-	d.dispatchOnce(context.Background())
+	require.False(t, d.dispatchOnce(context.Background()))
 
 	events, err := testStore.ListUnpublishedOutboxEvents(context.Background(), 10)
 	require.NoError(t, err)
 	require.Len(t, events, 1)
 	require.Equal(t, event.ID, events[0].ID, "failed event should be retried")
+}
+
+func TestDispatchContinuesBatchAfterPoisonRow(t *testing.T) {
+	cleanupOutboxEvents(t)
+	defer cleanupOutboxEvents(t)
+
+	okID := uuid.New()
+	poisonID := uuid.New()
+	okPayload, err := json.Marshal(rabbitmq.UserCreated{ID: okID, Username: "carol"})
+	require.NoError(t, err)
+	poisonPayload, err := json.Marshal(rabbitmq.UserCreated{ID: poisonID, Username: "poison"})
+	require.NoError(t, err)
+	okEvent := insertTestEvent(t, "userCreated", okID, okPayload)
+	poisonEvent := insertTestEvent(t, "userCreated", poisonID, poisonPayload)
+
+	poison := string(poisonEvent.Payload)
+	sender := &recordingSender{errForBody: map[string]error{poison: errors.New("poison")}}
+	d := New(testStore, sender, Config{PollInterval: time.Hour})
+
+	require.False(t, d.dispatchOnce(context.Background()))
+
+	events, err := testStore.ListUnpublishedOutboxEvents(context.Background(), 10)
+	require.NoError(t, err)
+	require.Len(t, events, 1, "poison row must stay unpublished")
+	require.Equal(t, poisonEvent.ID, events[0].ID)
+
+	remaining, err := testStore.GetOutboxEventById(context.Background(), okEvent.ID)
+	require.NoError(t, err)
+	require.True(t, remaining.PublishedAt.Valid, "healthy event must be marked published")
+}
+
+func TestConcurrentDispatchersPublishEachEventOnce(t *testing.T) {
+	cleanupOutboxEvents(t)
+	defer cleanupOutboxEvents(t)
+
+	const n = 10
+	ids := make(map[string]uuid.UUID, n)
+	for i := 0; i < n; i++ {
+		id := uuid.New()
+		ids[id.String()] = id
+		payload, err := json.Marshal(rabbitmq.UserCreated{ID: id, Username: id.String()})
+		require.NoError(t, err)
+		insertTestEvent(t, "userCreated", id, payload)
+	}
+
+	sender := &recordingSender{firstPublishDelay: 200 * time.Millisecond}
+
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := 0; i < 2; i++ {
+		d := New(testStore, sender, Config{PollInterval: time.Hour})
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			d.dispatchOnce(context.Background())
+		}()
+	}
+	close(start)
+	wg.Wait()
+
+	require.Len(t, sender.queues, n, "each event must be published exactly once")
+	for _, body := range sender.bodies {
+		var created rabbitmq.UserCreated
+		require.NoError(t, json.Unmarshal(body, &created))
+		_, ok := ids[created.ID.String()]
+		require.True(t, ok, "unexpected event published")
+	}
+	require.Len(t, sender.queues, len(ids), "no event may be published twice")
 }
 
 func TestQueueForEvent(t *testing.T) {
