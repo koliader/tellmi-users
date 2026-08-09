@@ -1,6 +1,7 @@
 package password
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -12,7 +13,7 @@ import (
 func createHashedPassword(t *testing.T, psswrd string) string {
 	t.Helper()
 
-	hashPassword, err := HashPassword(psswrd)
+	hashPassword, err := HashPassword(context.Background(), psswrd)
 	require.NoError(t, err)
 	require.NotEmpty(t, hashPassword)
 	require.NotEqual(t, psswrd, hashPassword)
@@ -24,7 +25,7 @@ func TestHashPassword(t *testing.T) {
 }
 
 func TestHashEmptyPassword(t *testing.T) {
-	hashPassword, err := HashPassword("")
+	hashPassword, err := HashPassword(context.Background(), "")
 	require.Error(t, err)
 	require.Empty(t, hashPassword)
 }
@@ -33,14 +34,14 @@ func TestCheckPassword(t *testing.T) {
 	psswrd := random.RandomString(10)
 	hashPassword := createHashedPassword(t, psswrd)
 
-	err := CheckPassword(hashPassword, psswrd)
+	err := CheckPassword(context.Background(), hashPassword, psswrd)
 	require.NoError(t, err)
 }
 
 func TestCheckWrongPassword(t *testing.T) {
 	hashPassword := createHashedPassword(t, random.RandomString(10))
 
-	err := CheckPassword(hashPassword, random.RandomString(10))
+	err := CheckPassword(context.Background(), hashPassword, random.RandomString(10))
 	require.Error(t, err)
 }
 
@@ -59,12 +60,12 @@ func TestHashFormat(t *testing.T) {
 }
 
 func TestCheckMalformedHash(t *testing.T) {
-	err := CheckPassword("not-a-valid-hash", random.RandomString(10))
+	err := CheckPassword(context.Background(), "not-a-valid-hash", random.RandomString(10))
 	require.Error(t, err)
 }
 
 func TestCheckEmptyHash(t *testing.T) {
-	err := CheckPassword("", random.RandomString(10))
+	err := CheckPassword(context.Background(), "", random.RandomString(10))
 	require.Error(t, err)
 }
 
@@ -76,10 +77,10 @@ func TestCheckNonDefaultParams(t *testing.T) {
 	hash, err := argon2id.CreateHash(psswrd, &params)
 	require.NoError(t, err)
 
-	err = CheckPassword(hash, psswrd)
+	err = CheckPassword(context.Background(), hash, psswrd)
 	require.NoError(t, err)
 
-	err = CheckPassword(hash, random.RandomString(10))
+	err = CheckPassword(context.Background(), hash, random.RandomString(10))
 	require.Error(t, err)
 }
 
@@ -88,7 +89,7 @@ func BenchmarkHashPassword(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := HashPassword(psswrd)
+		_, err := HashPassword(context.Background(), psswrd)
 		if err != nil {
 			b.Fatal(err)
 		}

@@ -14,7 +14,7 @@ import (
 func createRandomUser(t *testing.T) db.User {
 	t.Helper()
 
-	hashedPassword, err := password.HashPassword(random.RandomString(8))
+	hashedPassword, err := password.HashPassword(context.Background(), random.RandomString(8))
 	require.NoError(t, err)
 
 	user, err := testStore.CreateUser(context.Background(), db.CreateUserParams{
@@ -39,7 +39,7 @@ func TestCreateUser(t *testing.T) {
 func TestCreateUserDuplicateUsername(t *testing.T) {
 	user := createRandomUser(t)
 
-	hashedPassword, err := password.HashPassword(random.RandomString(8))
+	hashedPassword, err := password.HashPassword(context.Background(), random.RandomString(8))
 	require.NoError(t, err)
 
 	_, err = testStore.CreateUser(context.Background(), db.CreateUserParams{

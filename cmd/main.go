@@ -13,21 +13,22 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 
+	"github.com/koliader/tellmi-sdk/config"
+	"github.com/koliader/tellmi-sdk/health"
+	"github.com/koliader/tellmi-sdk/middleware"
+	"github.com/koliader/tellmi-sdk/otel"
+	pb "github.com/koliader/tellmi-sdk/proto/pb"
+	"github.com/koliader/tellmi-sdk/rabbitmq"
+	"github.com/koliader/tellmi-sdk/token"
 	users_server "github.com/koliader/tellmi-users/internal/app/grpc/users"
 	"github.com/koliader/tellmi-users/internal/dispatcher"
 	"github.com/koliader/tellmi-users/internal/lib/logger"
 	users_service "github.com/koliader/tellmi-users/internal/services/users"
 	db "github.com/koliader/tellmi-users/internal/store/db/sqlc"
-	"github.com/koliader/tellmi-sdk/config"
-	"github.com/koliader/tellmi-sdk/health"
-	"github.com/koliader/tellmi-sdk/middleware"
-	"github.com/koliader/tellmi-sdk/otel"
-	"github.com/koliader/tellmi-sdk/rabbitmq"
-	"github.com/koliader/tellmi-sdk/token"
-	pb "github.com/koliader/tellmi-sdk/proto/pb"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -45,15 +46,17 @@ type Config struct {
 
 func main() {
 	var cfg Config
-	err := config.LoadConfig(".", &cfg)
+	err := config.Load(".", &cfg)
 	if err != nil {
 		log.Fatal().Msg("cannot load config")
 	}
 
-	if cfg.Environment == "dev" || cfg.Environment == "docker" {
+	if cfg.Environment == "dev" {
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr}).Hook(otel.NewZerologHook())
-		zerolog.DefaultContextLogger = &log.Logger
+	} else {
+		log.Logger = log.Logger.Hook(otel.NewZerologHook())
 	}
+	zerolog.DefaultContextLogger = &log.Logger
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -95,10 +98,10 @@ func main() {
 		}()
 	}
 
-	runGrpcServer(ctx, cfg, store, otelSDK.MeterProvider)
+	runGrpcServer(ctx, cfg, store, otelSDK.TracerProvider, otelSDK.MeterProvider)
 }
 
-func runGrpcServer(ctx context.Context, cfg Config, store db.Store, meterProvider metric.MeterProvider) {
+func runGrpcServer(ctx context.Context, cfg Config, store db.Store, tracerProvider trace.TracerProvider, meterProvider metric.MeterProvider) {
 	tokenMaker, err := token.NewJWTMaker(cfg.TokenKey)
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot create token maker")
@@ -131,7 +134,10 @@ func runGrpcServer(ctx context.Context, cfg Config, store db.Store, meterProvide
 	grpcLogger := grpc.UnaryInterceptor(logger.GrpcLogger)
 	grpcServer := grpc.NewServer(
 		grpcLogger,
-		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+		grpc.StatsHandler(otelgrpc.NewServerHandler(
+			otelgrpc.WithTracerProvider(tracerProvider),
+			otelgrpc.WithMeterProvider(meterProvider),
+		)),
 	)
 	pb.RegisterUsersServer(grpcServer, usersServer)
 	reflection.Register(grpcServer)
@@ -147,4 +153,3 @@ func runGrpcServer(ctx context.Context, cfg Config, store db.Store, meterProvide
 		log.Fatal().Err(err).Msg("cannot start gRPC server")
 	}
 }
-

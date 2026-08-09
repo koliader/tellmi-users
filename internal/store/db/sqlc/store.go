@@ -16,6 +16,7 @@ type Store interface {
 	GetUserByUsername(ctx context.Context, username string) (User, error)
 	ListUsers(ctx context.Context) ([]User, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
+	UpdatePassword(ctx context.Context, id uuid.UUID, password string) error
 	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error)
 	GetRefreshToken(ctx context.Context, token string) (RefreshToken, error)
 	DeleteRefreshToken(ctx context.Context, token string) error
@@ -41,6 +42,11 @@ func NewStore(connPool *pgxpool.Pool) Store {
 		connPool: connPool,
 		Queries:  New(connPool),
 	}
+}
+
+func (s *SQLStore) UpdatePassword(ctx context.Context, id uuid.UUID, password string) error {
+	_, err := s.connPool.Exec(ctx, "UPDATE users SET password = $2 WHERE id = $1", id, password)
+	return err
 }
 
 func (s *SQLStore) ExecTx(ctx context.Context, fn func(q *Queries) error) error {

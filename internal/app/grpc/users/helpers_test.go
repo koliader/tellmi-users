@@ -88,7 +88,7 @@ func createTestAdmin(t *testing.T, client pb.UsersClient) (username, password, a
 	username = randomUsername()
 	password = random.RandomString(10)
 
-	hashed, err := passwordlib.HashPassword(password)
+	hashed, err := passwordlib.HashPassword(context.Background(), password)
 	require.NoError(t, err)
 
 	pool, err := pgxpool.New(context.Background(), testCfg.DBSource)

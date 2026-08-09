@@ -19,6 +19,7 @@ import (
 	"github.com/koliader/tellmi-sdk/token"
 	"github.com/koliader/tellmi-users/internal/lib/password"
 	db_store "github.com/koliader/tellmi-users/internal/store/db/sqlc"
+	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -64,7 +65,7 @@ func (s *Service) createTokenPair(ctx context.Context, q *db_store.Queries, user
 }
 
 func (s *Service) Register(ctx context.Context, req *pb.RegisterReq) (*pb.AuthRes, error) {
-	hashPassword, err := password.HashPassword(req.GetPassword())
+	hashPassword, err := password.HashPassword(ctx, req.GetPassword())
 	if err != nil {
 		return nil, errsvc.ErrorResponse(codes.Internal, "error to hash password: %v", err)
 	}
@@ -129,9 +130,18 @@ func (s *Service) Login(ctx context.Context, req *pb.LoginReq) (*pb.AuthRes, err
 		return nil, errsvc.ErrorResponse(codes.Internal, "error to get user: %v", err)
 	}
 
-	err = password.CheckPassword(user.Password, req.GetPassword())
+	err = password.CheckPassword(ctx, user.Password, req.GetPassword())
 	if err != nil {
 		return nil, errsvc.AuthError(fmt.Errorf("%v", authError))
+	}
+
+	if password.NeedsRehash(user.Password) {
+		rehashed, err := password.HashPassword(ctx, req.GetPassword())
+		if err == nil {
+			if err := s.store.UpdatePassword(ctx, user.ID, rehashed); err != nil {
+				log.Warn().Err(err).Str("user_id", user.ID.String()).Msg("failed to re-hash password on login")
+			}
+		}
 	}
 
 	var tokens *tokenPair
