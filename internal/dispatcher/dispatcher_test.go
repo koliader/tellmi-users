@@ -215,3 +215,15 @@ func TestQueueForEvent(t *testing.T) {
 	require.Equal(t, rabbitmq.UserUpdatedQueue, queueForEvent("userUpdated"))
 	require.Empty(t, queueForEvent("unknownEvent"))
 }
+
+func TestDispatchBacksOffOnDBUnavailable(t *testing.T) {
+	pool, err := pgxpool.New(context.Background(), "postgres://root:secret@localhost:5432/tellmi_users")
+	require.NoError(t, err)
+	pool.Close()
+
+	d := New(db.NewStore(pool), &recordingSender{}, Config{PollInterval: time.Hour})
+
+	published, hadFailure := d.dispatchOnce(context.Background())
+	require.Zero(t, published)
+	require.True(t, hadFailure, "a failed claim (DB down) must trigger backoff")
+}

@@ -13,6 +13,7 @@ type UserService interface {
 	Login(ctx context.Context, req *pb.LoginReq) (*pb.AuthRes, error)
 	Refresh(ctx context.Context, req *pb.RefreshReq) (*pb.RefreshRes, error)
 	GetUserById(ctx context.Context, req *pb.IdReq) (*db.User, error)
+	GetMe(ctx context.Context, payload *token.Payload) (*db.User, error)
 	ListUsers(ctx context.Context) (*[]db.User, error)
 	UpdateUser(ctx context.Context, req *pb.UpdateUserReq, payload *token.Payload) (*db.User, error)
 }

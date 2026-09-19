@@ -34,6 +34,19 @@ func (s *Server) GetUserById(ctx context.Context, req *pb.IdReq) (*pb.UserRes, e
 	return &pb.UserRes{User: converter.ConvertUser(*user)}, nil
 }
 
+func (s *Server) GetMe(ctx context.Context, req *pb.Empty) (*pb.UserRes, error) {
+	payload, err := s.middleware.AuthorizeUser(ctx)
+	if err != nil {
+		return nil, errsvc.ErrorResponse(codes.Unauthenticated, "error to authorize admin: %v", err)
+	}
+
+	user, err := s.users_service.GetMe(ctx, payload)
+	if err != nil {
+		return nil, err
+	}
+	return &pb.UserRes{User: converter.ConvertUser(*user)}, nil
+}
+
 func (s *Server) ListUsers(ctx context.Context, req *pb.Empty) (*pb.ListUserRes, error) {
 	_, err := s.middleware.AuthorizeAdmin(ctx)
 	if err != nil {

@@ -109,7 +109,7 @@ func (d *Dispatcher) dispatchLoop(ctx context.Context) {
 		if hadFailure {
 			// batch had a failure: back off exponentially before polling again
 			log.Warn().Int("published", published).Dur("backoff", backoff).
-				Msg("outbox dispatcher: publish failed, backing off")
+				Msg("outbox dispatcher: dispatch failed, backing off")
 			select {
 			case <-ctx.Done():
 				log.Info().Msg("outbox dispatcher stopped")
@@ -197,7 +197,7 @@ func (d *Dispatcher) dispatchOnce(ctx context.Context) (int, bool) {
 	})
 	if err != nil {
 		log.Error().Err(err).Msg("outbox dispatcher: failed to claim unpublished events")
-		return 0, false
+		return 0, true
 	}
 
 	return published, hadFailure

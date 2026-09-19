@@ -19,7 +19,7 @@ import (
 	"github.com/koliader/tellmi-sdk/token"
 	"github.com/koliader/tellmi-users/internal/lib/password"
 	db_store "github.com/koliader/tellmi-users/internal/store/db/sqlc"
-	"github.com/rs/zerolog/log"
+	// "github.com/rs/zerolog/log"
 )
 
 const (
@@ -135,14 +135,21 @@ func (s *Service) Login(ctx context.Context, req *pb.LoginReq) (*pb.AuthRes, err
 		return nil, errsvc.AuthError(fmt.Errorf("%v", authError))
 	}
 
-	if password.NeedsRehash(user.Password) {
-		rehashed, err := password.HashPassword(ctx, req.GetPassword())
-		if err == nil {
-			if err := s.store.UpdatePassword(ctx, user.ID, rehashed); err != nil {
-				log.Warn().Err(err).Str("user_id", user.ID.String()).Msg("failed to re-hash password on login")
-			}
-		}
-	}
+	// if password.NeedsRehash(user.Password) {
+	// 	// Re-hashing costs a full argon2 pass, so run it off the login
+	// 	// critical path. The update is idempotent; a concurrent login for the
+	// 	// same user may trigger it again harmlessly.
+	// 	go func(userID uuid.UUID, plain string) {
+	// 		rehashed, err := password.HashPassword(context.Background(), plain)
+	// 		if err != nil {
+	// 			log.Warn().Err(err).Str("user_id", userID.String()).Msg("failed to re-hash password on login")
+	// 			return
+	// 		}
+	// 		if err := s.store.UpdatePassword(context.Background(), userID, rehashed); err != nil {
+	// 			log.Warn().Err(err).Str("user_id", userID.String()).Msg("failed to persist re-hashed password on login")
+	// 		}
+	// 	}(user.ID, req.GetPassword())
+	// }
 
 	var tokens *tokenPair
 	err = s.store.ExecTx(ctx, func(q *db_store.Queries) error {
@@ -221,6 +228,17 @@ func (s *Service) GetUserById(ctx context.Context, req *pb.IdReq) (*db_store.Use
 			return nil, errsvc.AuthError(fmt.Errorf("%v", userNotFound))
 		}
 		return nil, errsvc.ErrorResponse(codes.Internal, "error to get user: %v", err)
+	}
+	return &user, nil
+}
+
+func (s *Service) GetMe(ctx context.Context, payload *token.Payload) (*db_store.User, error) {
+	user, err := s.store.GetUserById(ctx, payload.ID)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, errsvc.AuthError(fmt.Errorf("%v", userNotFound))
+		}
+		return nil, errsvc.ErrorResponse(codes.Internal, "error to get user")
 	}
 	return &user, nil
 }

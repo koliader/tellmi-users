@@ -32,7 +32,7 @@ var hashParams = &argon2id.Params{
 // hash transiently allocates Memory (32 MiB, or 64 MiB for pre-tuning hashes),
 // so without a cap a CPU-throttled pod can queue enough concurrent hashes to
 // blow past its memory limit and get OOMKilled.
-const maxHashConcurrency = 4
+const maxHashConcurrency = 8
 
 var hashSemaphore = make(chan struct{}, maxHashConcurrency)
 
